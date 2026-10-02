@@ -1,5 +1,3 @@
-
-Index · JS
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 const URL_ = () => process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,7 +26,7 @@ const COLS = "num,id,vc,nom,prenoms,dob,lieu,email,montant,trx,partner,status,mo
 const part = (p, withPin) => ({ id: p.id, name: p.name, code: p.code, coef: Number(p.coef), paid: Number(p.paid), rompu: p.rompu || null, pinChanged: !!p.pin_changed, ...(withPin && !p.pin_changed ? { pin: p.pin } : {}) });
 const img = s => typeof s === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(s) && s.length < 900000;
 const getPartner = async id => must(await db.from("partners").select("*").eq("id", id).maybeSingle());
- 
+
 const A = {
   async partnerInfo({ code }) { const p = must(await db.from("partners").select("rompu").eq("code", String(code || "").toLowerCase()).maybeSingle()); return { exists: !!p, active: !!p && !p.rompu }; },
   async register(d) {
@@ -128,7 +126,7 @@ const A = {
     return { requested: p.name };
   },
 };
- 
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "GET") {
@@ -142,4 +140,3 @@ module.exports = async (req, res) => {
   try { const f = Object.prototype.hasOwnProperty.call(A, d.action) && A[d.action]; if (!f) throw E("Action inconnue."); res.status(200).json(await f(d)); }
   catch (e) { console.error(e); res.status(e.st || 500).json({ error: e.st ? e.message : "Erreur serveur : " + (e.message || "inconnue") }); }
 };
- 
