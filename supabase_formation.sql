@@ -77,3 +77,8 @@ create table if not exists formation_access (
 );
 alter table formation_access enable row level security;
 revoke all on formation_access from anon, authenticated;
+
+-- ===== AJOUT : confirmation de l'inscription par téléphone (Oui / Non) =====
+alter table students add column if not exists conf text;       -- 'oui', 'non' ou vide (pas encore appelé)
+alter table students add column if not exists conf_at bigint;  -- date de l'appel
+alter table students add column if not exists conf_by text;    -- qui a appelé
