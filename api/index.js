@@ -141,7 +141,7 @@ const recOut = r => r ? { ...(r.data || {}), sub: Number(r.sub || 0), grade: r.g
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
-const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setTerm: "attest", allTerm: "attest", setOpen: "attest",
+const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest",
   fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY };
 const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
@@ -327,10 +327,11 @@ const A = {
   async pshot(d) { const t = check(d.token, "p"); await needSet(t); const x = must(await db.from("payments").select("partner,shot").eq("id", String(d.id || "")).maybeSingle()); if (!x || x.partner !== t.pid) throw E("Introuvable.", 404); return { data: x.shot }; },
   async adminState(d, c) {
     check(d.token, "a");
-    const [ps, st, dq, lg, py, pm, fp, fr] = await Promise.all([db.from("partners").select("*").order("name"), db.from("students").select(COLS).order("date"), db.from("dreq").select("*").order("date", { ascending: false }), db.from("log").select("*").order("date", { ascending: false }).limit(100), db.from("payouts").select("*").order("date", { ascending: false }), db.from("payments").select(PCOLS).order("date", { ascending: false }), db.from("formation_prog").select("num,grade"), db.from("formation_free").select("num")]);
+    const [ps, st, dq, lg, py, pm, fp, fr] = await Promise.all([db.from("partners").select("*").order("name"), db.from("students").select(COLS + ",conf,conf_at,conf_by").order("date"), db.from("dreq").select("*").order("date", { ascending: false }), db.from("log").select("*").order("date", { ascending: false }).limit(100), db.from("payouts").select("*").order("date", { ascending: false }), db.from("payments").select(PCOLS).order("date", { ascending: false }), db.from("formation_prog").select("num,grade"), db.from("formation_free").select("num")]);
     const pays = must(pm).map(payPub), pouts = must(py), cnt = {}; must(fp).forEach(r => { if (r.grade != null && Number(r.grade) >= PASSM) cnt[r.num] = (cnt[r.num] || 0) + 1; }); const gf = new Set(must(fr).map(x => x.num));
     const hs = hasP(c, "students"), hp = hasP(c, "partners"), hd = hasP(c, "delete");
-    const students = must(st).map(r => { const e0 = enrich(r, pays), e = { ...e0, fdone: cnt[r.num] || 0, attOk: (e0.solde || gf.has(r.num)) && (cnt[r.num] || 0) >= 30 }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
+    const stRows = (() => { try { return must(st); } catch (err) { return null; } })() || must(await db.from("students").select(COLS).order("date")); // repli si le script SQL « confirmation » n'a pas encore été exécuté
+    const students = stRows.map(r => { const e0 = enrich(r, pays), e = { ...e0, conf: r.conf || "", conf_at: Number(r.conf_at || 0), conf_by: r.conf_by || "", fdone: cnt[r.num] || 0, attOk: (e0.solde || gf.has(r.num)) && (cnt[r.num] || 0) >= 30 }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
     return { me: { name: c.who ? c.who.name : "", root: !c.who || c.who.root, perms: c.who ? c.who.pm : Object.keys(PERMS), tfa: !!process.env.ADMIN_TOTP_SECRET, weakPw: !!(c.who && c.who.root) && !strongOk(String(process.env.ADMIN_PASSWORD || "")) }, total: TOTAL, payments: hasP(c, "payments") ? pays : [], partners: hp ? must(ps).map(p => part(p, true, pouts.filter(x => x.partner === p.id).map(payRow), baseOf(p, pays))) : [], students, dreq: hd || hp ? must(dq).map(r => ({ ...r, date: Number(r.date) })) : [], log: hd ? must(lg).map(g => ({ ...g, date: Number(g.date) })) : [], payouts: hp ? pouts.map(payRow) : [], open: !!(await setting("open")), prod: !!(await setting("prod")) };
   },
   async img(d) { check(d.token, "a"); const r = must(await db.from("students").select("photo").eq("num", String(d.num || "")).maybeSingle()); if (!r) throw E("Introuvable.", 404); return { data: r.photo }; },
@@ -375,22 +376,19 @@ const A = {
     must(await db.from("payments").delete().neq("id", "")); must(await db.from("formation_prog").delete().neq("num", "")); must(await db.from("students").delete().neq("num", "")); must(await db.from("dreq").delete().neq("id", "")); return { ok: true };
   },
   async delStudent(d) {
-    check(d.token, "a"); const s = must(await db.from("students").select("num,nom,prenoms,status,partner").eq("num", d.num).maybeSingle()); if (!s) throw E("Inscription introuvable.", 404);
-    const prod = !!(await setting("prod")), p = s.partner ? await getPartner(s.partner) : null, label = s.nom + " " + s.prenoms;
-    const remove = async how => {
-      must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num)); must(await db.from("dreq").delete().eq("num", s.num));
-      must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: label, statut: s.status, partner: p ? p.name : "Direct", how })); return {};
-    };
-    if (!prod) return remove("Mode test");
-    if (!p) return remove("Inscription directe");
-    if (p.rompu) return remove("Contrat rompu");
-    const r = must(await db.from("dreq").select("*").eq("num", s.num).maybeSingle());
-    if (r && r.st === "ok") return remove("Autorisé par " + p.name);
-    if (r && r.st === "attente") return { pending: p.name };
-    if (r && r.st === "non" && !d.retry) return { refused: p.name };
-    if (r) must(await db.from("dreq").update({ st: "attente", date: Date.now() }).eq("id", r.id));
-    else must(await db.from("dreq").insert({ id: rnd(8), num: s.num, nom: label, partner: p.id, date: Date.now(), st: "attente" }));
-    return { requested: p.name };
+    check(d.token, "a"); const s = must(await db.from("students").select("num,nom,prenoms,status,partner").eq("num", String(d.num || "")).maybeSingle()); if (!s) throw E("Inscription introuvable.", 404);
+    const p = s.partner ? await getPartner(s.partner) : null, label = s.nom + " " + s.prenoms, r = must(await db.from("dreq").select("*").eq("num", s.num).maybeSingle());
+    // L'étudiant quitte immédiatement la liste des inscrits (chez vous comme chez le partenaire), que le partenaire ait accepté ou non.
+    const acc = !p ? "inscription directe" : r && r.st === "ok" ? "accord du partenaire obtenu" : r && r.st === "attente" ? "demande au partenaire restée sans réponse" : r && r.st === "non" ? "refus du partenaire" : "accord du partenaire non demandé";
+    must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
+    must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: label, statut: s.status, partner: p ? p.name : "Direct", how: "Supprimé immédiatement par l'administrateur (" + acc + ")" }));
+    return { ok: true };
+  },
+  // ===== 2) confirmation de l'inscription par téléphone : Oui / Non =====
+  async setConf(d, c) {
+    check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30), v = d.v === "oui" ? "oui" : d.v === "non" ? "non" : null;
+    if (!must(await db.from("students").select("num").eq("num", num).maybeSingle())) throw E("Inscription introuvable.", 404);
+    must(await db.from("students").update({ conf: v, conf_at: v ? Date.now() : null, conf_by: v ? c.who.name : null }).eq("num", num)); return { ok: true };
   },
   // ---------- Formation : étudiant ----------
   async fState(d, c) {
