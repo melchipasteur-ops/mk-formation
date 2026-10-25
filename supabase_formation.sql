@@ -96,13 +96,3 @@ revoke all on offers from anon, authenticated;
 -- Si cette commande échoue, des doublons existent déjà : listez-les avec
 --   select wa, count(*) from students group by wa having count(*) > 1;
 create unique index if not exists students_wa_uniq on students(wa);
-
--- ===== AJOUT : promotions (un nouveau mois de formation sans toucher aux étudiants en cours) =====
--- Chaque ligne de formation_cfg = une promotion. La ligne 1 = la formation actuelle.
-alter table formation_cfg add column if not exists name text;
-alter table formation_cfg add column if not exists registering boolean default false;  -- promotion dans laquelle les nouveaux s'inscrivent
-alter table formation_cfg add column if not exists created bigint;
-update formation_cfg set name = 'Promotion 1' where id = 1 and name is null;
-update formation_cfg set registering = true where id = 1 and not exists (select 1 from formation_cfg where registering = true);
-alter table students add column if not exists cohort int default 1;   -- promotion de l'étudiant
-update students set cohort = 1 where cohort is null;
