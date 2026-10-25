@@ -82,3 +82,17 @@ revoke all on formation_access from anon, authenticated;
 alter table students add column if not exists conf text;       -- 'oui', 'non' ou vide (pas encore appelé)
 alter table students add column if not exists conf_at bigint;  -- date de l'appel
 alter table students add column if not exists conf_by text;    -- qui a appelé
+
+-- ===== AJOUT : offres (montant offert, le reste se paie en une seule fois) =====
+create table if not exists offers (
+  num text primary key,        -- étudiant concerné
+  amount int not null,         -- montant offert en FCFA (le total à payer = prix total - amount)
+  at bigint
+);
+alter table offers enable row level security;
+revoke all on offers from anon, authenticated;
+
+-- ===== AJOUT : un seul compte par numéro WhatsApp (verrou contre les doublons) =====
+-- Si cette commande échoue, des doublons existent déjà : listez-les avec
+--   select wa, count(*) from students group by wa having count(*) > 1;
+create unique index if not exists students_wa_uniq on students(wa);
