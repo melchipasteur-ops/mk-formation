@@ -106,3 +106,10 @@ update formation_cfg set name = 'Promotion 1' where id = 1 and name is null;
 update formation_cfg set registering = true where id = 1 and not exists (select 1 from formation_cfg where registering = true);
 alter table students add column if not exists cohort int default 1;   -- promotion de l'étudiant
 update students set cohort = 1 where cohort is null;
+
+-- ===== AJOUT : tarification par promotion (prix, tranche, jours gratuits) =====
+-- Laisser vide = valeurs d'origine (12 000 / 7 000 / 2 jours / 10 jours).
+alter table formation_cfg add column if not exists price int;       -- prix total en FCFA
+alter table formation_cfg add column if not exists t1 int;          -- 1re tranche (0 = paiement en une seule fois)
+alter table formation_cfg add column if not exists free_days int;   -- jours gratuits avant paiement
+alter table formation_cfg add column if not exists t1_days int;     -- jours couverts par la 1re tranche
