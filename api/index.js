@@ -50,10 +50,13 @@ const totp = (secret, t = Date.now()) => { const c = Buffer.alloc(8); c.writeBig
 const totpOk = code => { const sec = process.env.ADMIN_TOTP_SECRET; if (!sec) return true; const c = Buffer.from(String(code || "").replace(/\s/g, "").padStart(6, "x").slice(0, 6)); return [-1, 0, 1].some(i => { const a = Buffer.from(totp(sec, Date.now() + i * 30000)); return a.length === c.length && crypto.timingSafeEqual(a, c); }); };
 const setting = async k => { const r = must(await db.from("settings").select("value").eq("key", k).maybeSingle()); return r ? r.value : false; };
 const putSetting = async (k, v) => must(await db.from("settings").upsert({ key: k, value: v }));
+// Offres : montant offert à un étudiant (déduit du prix total, à payer en UNE seule fois)
+const offersMap = async () => { const m = {}; try { must(await db.from("offers").select("num,amount")).forEach(r => { m[r.num] = Number(r.amount); }); } catch (e) { /* table « offers » pas encore créée : aucune offre */ } return m; };
+const offerOf = async num => { try { const r = must(await db.from("offers").select("amount").eq("num", String(num || "")).maybeSingle()); return r ? Number(r.amount) : 0; } catch (e) { return 0; } };
 const COLS = "num,id,vc,nom,prenoms,dob,lieu,email,partner,status,motif,termine,date,dv,wa,phase,retire,date_retrait";
 const sum = (a, st) => a.filter(x => x.st === st).reduce((t, x) => t + Number(x.amount), 0);
 const pub = r => ({ num: r.num, id: r.id, vc: r.vc, nom: r.nom, prenoms: r.prenoms, dob: r.dob, lieu: r.lieu, email: r.email, partner: r.partner, status: r.status, motif: r.motif, wa: r.wa, phase: r.phase || "complet", termine: !!r.termine, retire: !!r.retire, date_retrait: r.date_retrait ? Number(r.date_retrait) : 0, date: Number(r.date), dv: r.dv ? Number(r.dv) : 0 });
-const enrich = (r, pays) => { const m = pays.filter(p => p.num === r.num), paid = sum(m, "valide"), pend = sum(m, "attente"); return { ...pub(r), paid, pend, reste: Math.max(0, TOTAL - paid), solde: paid >= TOTAL, nPay: m.length }; };
+const enrich = (r, pays, off = 0) => { const m = pays.filter(p => p.num === r.num), paid = sum(m, "valide"), pend = sum(m, "attente"); return { ...pub(r), paid, pend, reste: Math.max(0, TOTAL - off - paid), solde: paid >= TOTAL - off, nPay: m.length, offer: off, total: TOTAL - off }; };
 // Vue partenaire : AUCUN nom, AUCUN identifiant de connexion, AUCUNE référence de transaction.
 const forPartner = s => ({ num: s.num, partner: s.partner, phase: s.phase, date: s.date, paid: s.paid, pend: s.pend, reste: s.reste, solde: s.solde });
 const payPart = x => ({ id: x.id, num: x.num, amount: Number(x.amount), date: Number(x.date), st: x.st, dv: x.dv ? Number(x.dv) : 0 });
@@ -80,7 +83,7 @@ const findStudent = async (num, id, cols = COLS) => {
 async function syncStatus(num) {
   const ps = must(await db.from("payments").select("amount,st").eq("num", num)), paid = sum(ps, "valide");
   const cur = must(await db.from("students").select("status").eq("num", num).maybeSingle()); if (!cur) return;
-  const st = paid >= TOTAL ? "valide" : "attente";
+  const st = paid >= TOTAL - (await offerOf(num)) ? "valide" : "attente";
   if (cur.status !== st) must(await db.from("students").update({ status: st, dv: st === "valide" ? Date.now() : null }).eq("num", num));
 }
 
@@ -96,22 +99,31 @@ const qpub = Q => Q.map(q => q.slice(0, q[0] === "qcm" ? 3 : 2));
 const qexp = q => q[q[0] === "qcm" ? 4 : 3];
 const qans = (q, a) => a == null || a === "" ? "(sans réponse)" : q[0] === "qcm" ? q[2][a] : q[0] === "vf" ? (a ? "Vrai" : "Faux") : String(a);
 const DEFAULT_START = Date.parse(process.env.FORMATION_START || "2026-11-01T00:00:00+01:00"); // minuit à Cotonou
-const fcfg = async () => {
-  const r = must(await db.from("formation_cfg").select("*").eq("id", 1).maybeSingle()), manual = r && r.launch_at ? Number(r.launch_at) : 0, start = r && r.start_at ? Number(r.start_at) : DEFAULT_START;
+// Promotions : chaque promotion (mois de formation) a sa propre date de démarrage et son propre calendrier ; la promotion 1 = la formation d'origine
+const cohortOf = async num => { try { const r = must(await db.from("students").select("cohort").eq("num", String(num || "")).maybeSingle()); return r && Number(r.cohort) || 1; } catch (e) { return 1; } };
+const regCohort = async () => { try { const r = must(await db.from("formation_cfg").select("id").eq("registering", true).order("id", { ascending: false }).limit(1)); return r.length ? Number(r[0].id) : 1; } catch (e) { return 1; } };
+const studentsC = async cols => { const r = await db.from("students").select(cols + ",cohort"); return r.error ? db.from("students").select(cols) : r; };
+const cohortsList = async (all = []) => {
+  let rows; try { rows = must(await db.from("formation_cfg").select("id,name,start_at,launch_at,registering").order("id")); } catch (e) { rows = must(await db.from("formation_cfg").select("id,start_at,launch_at").order("id")); }
+  const rc = await regCohort();
+  return rows.map(r => { const id = Number(r.id); return { id, name: r.name || "Promotion " + id, start: r.start_at ? Number(r.start_at) : DEFAULT_START, launched: !!r.launch_at, registering: id === rc, n: all.filter(x => (Number(x.cohort) || 1) === id).length }; });
+};
+const fcfg = async (cid = 1) => {
+  const r = must(await db.from("formation_cfg").select("*").eq("id", cid).maybeSingle()), manual = r && r.launch_at ? Number(r.launch_at) : 0, start = r && r.start_at ? Number(r.start_at) : DEFAULT_START;
   return { launch: manual || (Date.now() >= start ? start : 0), manual: !!manual, start, adm: r ? Number(r.admin_day || 0) : 0 };
 };
 const schedDay = c => c.launch ? Math.min(30, Math.floor((Date.now() - c.launch) / 864e5) + 1) : 0;
 const openDayOf = c => c.launch ? Math.min(30, Math.max(schedDay(c), c.adm)) : 0;
-const levelOf = paid => paid >= TOTAL ? 30 : paid >= T1 ? T1_DAYS : FREE_DAYS;
+const levelOf = (paid, off = 0) => paid >= TOTAL - off ? 30 : paid >= T1 ? T1_DAYS : FREE_DAYS;
 const passed30 = async num => must(await db.from("formation_prog").select("day,grade").eq("num", String(num || ""))).filter(x => x.grade != null && Number(x.grade) >= PASSM).length >= 30;
 const isFree = async num => !!must(await db.from("formation_free").select("num").eq("num", String(num || "")).maybeSingle());
 // "gift" = accès offert : jamais exposé à l'étudiant (il voit simplement « accès complet »)
-const fInfo = (paid, pend, c, gift, ov) => { const open = Math.min(30, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0)), full = gift || paid >= TOTAL; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < 30 ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, openDay: open, paid, pend, level: full ? 30 : levelOf(paid), plan: full ? "complet" : paid >= T1 ? "tranche1" : "gratuit", remaining: !full && paid >= T1 ? Math.max(0, T1_DAYS - open) : null, freeLeft: !full && paid < T1 ? Math.max(0, FREE_DAYS - open) : null, T1, TOTAL, free: FREE_DAYS, t1days: T1_DAYS }; };
+const fInfo = (paid, pend, c, gift, ov, off = 0) => { const open = Math.min(30, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0)), full = gift || paid >= TOTAL - off; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < 30 ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, openDay: open, paid, pend, level: full ? 30 : levelOf(paid, off), plan: full ? "complet" : paid >= T1 ? "tranche1" : "gratuit", remaining: !full && paid >= T1 ? Math.max(0, T1_DAYS - open) : null, freeLeft: !full && paid < T1 ? Math.max(0, FREE_DAYS - open) : null, T1, TOTAL: TOTAL - off, offer: off, free: FREE_DAYS, t1days: T1_DAYS }; };
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
 const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n > fx.level ? "pay" : n > fx.openDay ? "wait" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
 const reasonOf = (a, n, fx) => a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
   : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DESIGN GRAPH."
-  : a === "pay" ? (fx.paid >= T1 ? "Votre 1re tranche couvre les " + T1_DAYS + " premiers jours. Réglez la 2e tranche (" + (TOTAL - T1) + " FCFA) pour continuer." : "Les " + FREE_DAYS + " jours gratuits sont terminés. Payez " + T1 + " FCFA (jours 1 à " + T1_DAYS + ") ou " + TOTAL + " FCFA (accès complet) pour continuer.")
+  : a === "pay" ? (fx.offer > 0 ? "Les " + FREE_DAYS + " jours gratuits sont terminés. Payez " + fx.TOTAL + " FCFA en une seule fois pour continuer." : fx.paid >= T1 ? "Votre 1re tranche couvre les " + T1_DAYS + " premiers jours. Réglez la 2e tranche (" + (TOTAL - T1) + " FCFA) pour continuer." : "Les " + FREE_DAYS + " jours gratuits sont terminés. Payez " + T1 + " FCFA (jours 1 à " + T1_DAYS + ") ou " + TOTAL + " FCFA (accès complet) pour continuer.")
   : "Validez d'abord le jour précédent (14/20 minimum).";
 async function fctx(d, c, key, max = 300) {
   await limit(key + ":" + c.ip, max, 900e3);
@@ -123,7 +135,7 @@ async function fctx(d, c, key, max = 300) {
   }
   const s = adm ? must(await db.from("students").select("num,nom,prenoms").eq("num", String(d.num).toUpperCase().slice(0, 30)).maybeSingle()) : await findStudent(d.num, d.id, "num,nom,prenoms");
   if (!s) throw E(adm ? "Étudiant introuvable." : "Numéro ou identifiant incorrect.", 404);
-  const ps = must(await db.from("payments").select("amount,st").eq("num", s.num)), fx = fInfo(sum(ps, "valide"), sum(ps, "attente"), cfg, await isFree(s.num), must(await db.from("formation_access").select("*").eq("num", s.num).maybeSingle()));
+  const ps = must(await db.from("payments").select("amount,st").eq("num", s.num)), fx = fInfo(sum(ps, "valide"), sum(ps, "attente"), await fcfg(await cohortOf(s.num)), await isFree(s.num), must(await db.from("formation_access").select("*").eq("num", s.num).maybeSingle()), await offerOf(s.num));
   must(await db.from("formation_prog").select(cols).eq("num", s.num)).forEach(r => pm[r.day] = r);
   return { s, fx, pm, ro: adm };
 }
@@ -141,9 +153,9 @@ const recOut = r => r ? { ...(r.data || {}), sub: Number(r.sub || 0), grade: r.g
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
-const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest",
+const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", newCohort: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
   fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
-  adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY };
+  adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
 const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
 async function adminCtx(token) {
   let t; try { t = check(token, "a"); } catch (e) { return null; }
@@ -157,9 +169,11 @@ const DUMMY = hash("dummy");
 async function audit(who, d) { try { await db.from("admin_audit").insert({ at: Date.now(), who: who.name, action: d.action, target: String(d.num || d.id || d.day || d.login || "").slice(0, 40) }); } catch (e) { /* le journal ne bloque jamais l'action */ } }
 
 const A = {
+  async regState() { const rc = await regCohort(), c = await fcfg(rc); return { closed: !!(await setting("reg_closed")), start: c.start, cohort: rc }; },
   async partnerInfo({ code }) { const p = must(await db.from("partners").select("rompu").eq("code", String(code || "").toLowerCase().slice(0, 12)).maybeSingle()); return { exists: !!p, active: !!p && !p.rompu }; },
   async register(d, c) {
     await limit("rg:" + c.ip, 20, 3600e3);
+    if (await setting("reg_closed")) throw E("Les inscriptions sont fermées pour le moment. Contactez MK-DESIGN GRAPH sur WhatsApp.", 403);
     const nom = String(d.nom || "").trim(), prenoms = String(d.prenoms || "").trim();
     let wa = String(d.wa || "").replace(/\D/g, "");
     if (!nom || !prenoms) throw E("Veuillez saisir votre nom et vos prénoms.");
@@ -168,8 +182,8 @@ const A = {
     if (must(await db.from("students").select("num").eq("wa", wa).limit(1)).length) throw E("Ce numéro WhatsApp est déjà inscrit. Utilisez « Mon reçu » avec votre numéro d'attribution et votre identifiant, ou contactez-nous sur WhatsApp.");
     let partner = null;
     if (d.partnerCode) { const p = must(await db.from("partners").select("id,rompu").eq("code", String(d.partnerCode).toLowerCase().slice(0, 12)).maybeSingle()); if (p && !p.rompu) partner = p.id; }
-    const n = must(await db.rpc("next_num"));
-    const row = { num: "FORM-2026-" + String(n).padStart(5, "0"), id: strongCode(12), vc: rnd(10), nom: nom.toUpperCase().slice(0, 80), prenoms: prenoms.slice(0, 120), wa, partner, phase: "inscrit", status: "attente", termine: false, retire: false, montant: 0, date: Date.now() };
+    const rc = await regCohort(), n = must(await db.rpc("next_num"));
+    const row = { num: "FORM-2026-" + String(n).padStart(5, "0"), id: strongCode(12), vc: rnd(10), nom: nom.toUpperCase().slice(0, 80), prenoms: prenoms.slice(0, 120), wa, partner, phase: "inscrit", status: "attente", termine: false, retire: false, montant: 0, date: Date.now(), ...(rc !== 1 ? { cohort: rc } : {}) };
     must(await db.from("students").insert(row)); return { num: row.num, id: row.id };
   },
   async complete(d, c) {
@@ -190,8 +204,8 @@ const A = {
     const amount = Math.round(+d.amount), trx = String(d.trx || "").trim().toUpperCase().slice(0, 60);
     if (!trx || !img(d.shot)) throw E("La référence et la capture du paiement sont obligatoires.");
     const ps = must(await db.from("payments").select("amount,st").eq("num", s.num)), used = sum(ps, "valide") + sum(ps, "attente");
-    const rest = TOTAL - used; if (rest <= 0) throw E("Votre formation est déjà entièrement payée.");
-    if (!(used === 0 ? [TOTAL, T1] : [rest]).includes(amount)) throw E(used === 0 ? "Choisissez : " + TOTAL + " FCFA en une fois, ou " + T1 + " FCFA pour la 1re tranche (puis " + (TOTAL - T1) + " FCFA)." : "Le montant à payer est de " + rest + " FCFA.");
+    const off = await offerOf(s.num), rest = TOTAL - off - used; if (rest <= 0) throw E("Votre formation est déjà entièrement payée.");
+    if (!(used === 0 && !off ? [TOTAL, T1] : [rest]).includes(amount)) throw E(used === 0 && !off ? "Choisissez : " + TOTAL + " FCFA en une fois, ou " + T1 + " FCFA pour la 1re tranche (puis " + (TOTAL - T1) + " FCFA)." : "Le montant à payer est de " + rest + " FCFA" + (off && used === 0 ? " en une seule fois." : "."));
     if (must(await db.from("payments").select("id").eq("trx", trx).neq("st", "rejete").neq("st", "annule").limit(1)).length) throw E("Cette référence de transaction a déjà été utilisée.");
     must(await db.from("payments").insert({ id: rnd(8), num: s.num, partner: s.partner, amount, trx, shot: d.shot, date: Date.now(), st: "attente" })); return { ok: true };
   },
@@ -200,7 +214,7 @@ const A = {
     const r = await findStudent(d.num, d.id, COLS + ",photo");
     if (!r) throw E("Numéro ou identifiant incorrect.", 404);
     const pays = must(await db.from("payments").select("*").eq("num", r.num).order("date")).map(x => ({ ...payPub(x), shot: x.shot }));
-    const gift = await isFree(r.num); return { student: { ...enrich(r, pays), photo: r.photo, acces: gift }, pays, open: !!(await setting("open")), total: TOTAL, fx: fInfo(sum(pays, "valide"), sum(pays, "attente"), await fcfg(), gift, must(await db.from("formation_access").select("*").eq("num", r.num).maybeSingle())) };
+    const gift = await isFree(r.num), off = await offerOf(r.num); return { student: { ...enrich(r, pays, off), photo: r.photo, acces: gift }, pays, open: !!(await setting("open")), total: TOTAL - off, fx: fInfo(sum(pays, "valide"), sum(pays, "attente"), await fcfg(await cohortOf(r.num)), gift, must(await db.from("formation_access").select("*").eq("num", r.num).maybeSingle()), off) };
   },
   async replaceShot(d, c) {
     await limit("rs:" + c.ip, 30, 3600e3);
@@ -209,7 +223,7 @@ const A = {
     if (!x || x.num !== s.num) throw E("Paiement introuvable.", 404);
     if (!["attente", "rejete"].includes(x.st)) throw E("Cette transaction ne peut plus être modifiée : envoyez un nouveau paiement.", 403);
     if (!img(d.shot)) throw E("Capture invalide.");
-    if (x.st === "rejete") { const o = must(await db.from("payments").select("id,amount,st").eq("num", s.num)).filter(p => p.id !== x.id); if (sum(o, "valide") + sum(o, "attente") + Number(x.amount) > TOTAL) throw E("Ce paiement n'est plus possible : envoyez un nouveau paiement.", 403); }
+    if (x.st === "rejete") { const o = must(await db.from("payments").select("id,amount,st").eq("num", s.num)).filter(p => p.id !== x.id); if (sum(o, "valide") + sum(o, "attente") + Number(x.amount) > TOTAL - (await offerOf(s.num))) throw E("Ce paiement n'est plus possible : envoyez un nouveau paiement.", 403); }
     must(await db.from("payments").update({ shot: d.shot, st: "attente", motif: null }).eq("id", x.id)); return { ok: true };
   },
   async newPhoto(d, c) {
@@ -223,7 +237,7 @@ const A = {
     await limit("rt:" + c.ip, 40, 900e3);
     const r = await findStudent(d.num, d.id, "num,termine,retire"); if (!r) throw E("Numéro ou identifiant incorrect.", 404);
     const paid = sum(must(await db.from("payments").select("amount,st").eq("num", r.num)), "valide");
-    if (paid < TOTAL && !(await isFree(r.num))) throw E("Paiement non soldé : attestation indisponible.", 403);
+    if (paid < TOTAL - (await offerOf(r.num)) && !(await isFree(r.num))) throw E("Paiement non soldé : attestation indisponible.", 403);
     if (!(await passed30(r.num))) throw E("Attestation non valide ou formation incomplète : validez les 30 jours de la formation.", 403);
     if (!(await setting("open"))) throw E("Le retrait des attestations n'est pas encore ouvert.", 403);
     if (!r.retire) must(await db.from("students").update({ retire: true, date_retrait: Date.now() }).eq("num", r.num));
@@ -301,7 +315,7 @@ const A = {
     if (c.who && d.pid) { p = await getPartner(String(d.pid)); ro = true; if (!p) throw E("Partenaire introuvable.", 404); } // l'administrateur voit l'espace d'un partenaire, en lecture seule
     else { const t = check(d.token, "p"); p = await getPartner(t.pid); if (!p || p.rompu) throw E("Accès désactivé.", 401); if (!p.pin_changed) return { mustChange: true, partner: { id: p.id, name: p.name } }; }
     const pays = must(await db.from("payments").select(PCOLS).eq("partner", p.id).order("date")).map(payPub);
-    const st = must(await db.from("students").select(COLS).eq("partner", p.id).order("date")).map(r => forPartner(enrich(r, pays)));
+    const OFFS = await offersMap(), st = must(await db.from("students").select(COLS).eq("partner", p.id).order("date")).map(r => forPartner(enrich(r, pays, OFFS[r.num] || 0)));
     const dreq = must(await db.from("dreq").select("*").eq("partner", p.id).order("date", { ascending: false }));
     const pouts = must(await db.from("payouts").select("*").eq("partner", p.id).order("date", { ascending: false })).map(payRow);
     return { ro, partner: part(p, false, pouts, baseOf(p, pays)), students: st, payments: pays.map(payPart), dreq: dreq.map(dreqPart), payouts: pouts };
@@ -327,19 +341,19 @@ const A = {
   async pshot(d) { const t = check(d.token, "p"); await needSet(t); const x = must(await db.from("payments").select("partner,shot").eq("id", String(d.id || "")).maybeSingle()); if (!x || x.partner !== t.pid) throw E("Introuvable.", 404); return { data: x.shot }; },
   async adminState(d, c) {
     check(d.token, "a");
-    const [ps, st, dq, lg, py, pm, fp, fr] = await Promise.all([db.from("partners").select("*").order("name"), db.from("students").select(COLS + ",conf,conf_at,conf_by").order("date"), db.from("dreq").select("*").order("date", { ascending: false }), db.from("log").select("*").order("date", { ascending: false }).limit(100), db.from("payouts").select("*").order("date", { ascending: false }), db.from("payments").select(PCOLS).order("date", { ascending: false }), db.from("formation_prog").select("num,grade"), db.from("formation_free").select("num")]);
+    const [ps, st, dq, lg, py, pm, fp, fr] = await Promise.all([db.from("partners").select("*").order("name"), db.from("students").select(COLS + ",conf,conf_at,conf_by,cohort").order("date"), db.from("dreq").select("*").order("date", { ascending: false }), db.from("log").select("*").order("date", { ascending: false }).limit(100), db.from("payouts").select("*").order("date", { ascending: false }), db.from("payments").select(PCOLS).order("date", { ascending: false }), db.from("formation_prog").select("num,grade"), db.from("formation_free").select("num")]);
     const pays = must(pm).map(payPub), pouts = must(py), cnt = {}; must(fp).forEach(r => { if (r.grade != null && Number(r.grade) >= PASSM) cnt[r.num] = (cnt[r.num] || 0) + 1; }); const gf = new Set(must(fr).map(x => x.num));
     const hs = hasP(c, "students"), hp = hasP(c, "partners"), hd = hasP(c, "delete");
     const stRows = (() => { try { return must(st); } catch (err) { return null; } })() || must(await db.from("students").select(COLS).order("date")); // repli si le script SQL « confirmation » n'a pas encore été exécuté
-    const students = stRows.map(r => { const e0 = enrich(r, pays), e = { ...e0, conf: r.conf || "", conf_at: Number(r.conf_at || 0), conf_by: r.conf_by || "", fdone: cnt[r.num] || 0, attOk: (e0.solde || gf.has(r.num)) && (cnt[r.num] || 0) >= 30 }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
-    return { me: { name: c.who ? c.who.name : "", root: !c.who || c.who.root, perms: c.who ? c.who.pm : Object.keys(PERMS), tfa: !!process.env.ADMIN_TOTP_SECRET, weakPw: !!(c.who && c.who.root) && !strongOk(String(process.env.ADMIN_PASSWORD || "")) }, total: TOTAL, payments: hasP(c, "payments") ? pays : [], partners: hp ? must(ps).map(p => part(p, true, pouts.filter(x => x.partner === p.id).map(payRow), baseOf(p, pays))) : [], students, dreq: hd || hp ? must(dq).map(r => ({ ...r, date: Number(r.date) })) : [], log: hd ? must(lg).map(g => ({ ...g, date: Number(g.date) })) : [], payouts: hp ? pouts.map(payRow) : [], open: !!(await setting("open")), prod: !!(await setting("prod")) };
+    const OFFS = await offersMap(), students = stRows.map(r => { const e0 = enrich(r, pays, OFFS[r.num] || 0), e = { ...e0, cohort: Number(r.cohort) || 1, conf: r.conf || "", conf_at: Number(r.conf_at || 0), conf_by: r.conf_by || "", fdone: cnt[r.num] || 0, attOk: (e0.solde || gf.has(r.num)) && (cnt[r.num] || 0) >= 30 }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
+    return { me: { name: c.who ? c.who.name : "", root: !c.who || c.who.root, perms: c.who ? c.who.pm : Object.keys(PERMS), tfa: !!process.env.ADMIN_TOTP_SECRET, weakPw: !!(c.who && c.who.root) && !strongOk(String(process.env.ADMIN_PASSWORD || "")) }, total: TOTAL, payments: hasP(c, "payments") ? pays : [], partners: hp ? must(ps).map(p => part(p, true, pouts.filter(x => x.partner === p.id).map(payRow), baseOf(p, pays))) : [], students, dreq: hd || hp ? must(dq).map(r => ({ ...r, date: Number(r.date) })) : [], log: hd ? must(lg).map(g => ({ ...g, date: Number(g.date) })) : [], payouts: hp ? pouts.map(payRow) : [], open: !!(await setting("open")), prod: !!(await setting("prod")), regClosed: !!(await setting("reg_closed")), cohorts: await cohortsList(stRows) };
   },
   async img(d) { check(d.token, "a"); const r = must(await db.from("students").select("photo").eq("num", String(d.num || "")).maybeSingle()); if (!r) throw E("Introuvable.", 404); return { data: r.photo }; },
   async pimg(d) { check(d.token, "a"); const r = must(await db.from("payments").select("shot").eq("id", String(d.id || "")).maybeSingle()); if (!r) throw E("Introuvable.", 404); return { data: r.shot }; },
   async setPayStatus(d) {
     check(d.token, "a"); if (!["attente", "valide", "rejete", "annule"].includes(d.st)) throw E("Statut invalide.");
     const x = must(await db.from("payments").select("*").eq("id", String(d.id || "")).maybeSingle()); if (!x) throw E("Paiement introuvable.", 404);
-    if (d.st === "valide") { const others = must(await db.from("payments").select("id,amount,st").eq("num", x.num)).filter(p => p.id !== x.id); if (sum(others, "valide") + Number(x.amount) > TOTAL) throw E("Ce paiement dépasserait le total de " + TOTAL + " FCFA."); }
+    if (d.st === "valide") { const tot = TOTAL - (await offerOf(x.num)), others = must(await db.from("payments").select("id,amount,st").eq("num", x.num)).filter(p => p.id !== x.id); if (sum(others, "valide") + Number(x.amount) > tot) throw E("Ce paiement dépasserait le total de " + tot + " FCFA."); }
     const motif = d.st === "rejete" ? String(d.motif || "").slice(0, 300) : d.st === "annule" ? (String(d.motif || "").trim().slice(0, 300) || "Transaction annulée par l'administration.") : null;
     must(await db.from("payments").update({ st: d.st, motif, dv: d.st === "valide" ? Date.now() : null }).eq("id", x.id));
     await syncStatus(x.num); return { ok: true };
@@ -358,6 +372,39 @@ const A = {
   async cancelPayout(d) { check(d.token, "a"); must(await db.from("payouts").delete().eq("id", d.id).neq("st", "recu")); return { ok: true }; },
   async setTerm(d) { check(d.token, "a"); if (d.v && !(await passed30(d.num))) throw E("Cet étudiant n'a pas validé les 30 jours : impossible de le marquer terminé."); must(await db.from("students").update({ termine: !!d.v }).eq("num", d.num)); return { ok: true }; },
   async allTerm(d) { check(d.token, "a"); const cnt = {}; must(await db.from("formation_prog").select("num,grade")).forEach(r => { if (r.grade != null && Number(r.grade) >= PASSM) cnt[r.num] = (cnt[r.num] || 0) + 1; }); const ns = Object.keys(cnt).filter(k => cnt[k] >= 30); for (const k of ns) must(await db.from("students").update({ termine: true }).eq("num", k)); return { ok: true, n: ns.length }; },
+  async newCohort(d) { // nouvelle promotion : nouveau mois, nouvelles inscriptions, calendrier indépendant des promotions en cours
+    check(d.token, "a"); const name = String(d.name || "").trim().slice(0, 60), t = Date.parse(String(d.date || "").slice(0, 10) + "T00:00:00+01:00");
+    if (!name) throw E("Donnez un nom à la promotion (ex. Promotion décembre 2026)."); if (isNaN(t)) throw E("Date de démarrage invalide."); if (t < Date.now()) throw E("La date de démarrage doit être dans le futur.");
+    const id = Math.max(1, ...must(await db.from("formation_cfg").select("id")).map(r => Number(r.id))) + 1;
+    must(await db.from("formation_cfg").update({ registering: false }).gte("id", 0));
+    must(await db.from("formation_cfg").insert({ id, name, start_at: t, launch_at: null, admin_day: 0, registering: true, created: Date.now() }));
+    await putSetting("reg_closed", false); return { ok: true, id };
+  },
+  async setRegCohort(d) { // choisir dans quelle promotion les nouveaux étudiants s'inscrivent
+    check(d.token, "a"); const id = Math.round(+d.id) || 0; if (!must(await db.from("formation_cfg").select("id").eq("id", id).maybeSingle())) throw E("Promotion introuvable.", 404);
+    must(await db.from("formation_cfg").update({ registering: false }).gte("id", 0)); must(await db.from("formation_cfg").update({ registering: true }).eq("id", id)); return { ok: true };
+  },
+  async setReg(d) { check(d.token, "a"); await putSetting("reg_closed", !!d.v); return { ok: true }; }, // arrêter / rouvrir les inscriptions
+  async setOffer(d) { // montant offert à un étudiant : il paie (prix total - offre) en une seule fois
+    check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30), amt = Math.round(+d.amount || 0);
+    if (!must(await db.from("students").select("num").eq("num", num).maybeSingle())) throw E("Aucun étudiant avec ce numéro.", 404);
+    if (amt < 0 || amt >= TOTAL) throw E("L'offre doit être comprise entre 0 et " + (TOTAL - 1) + " FCFA (pour un accès entièrement gratuit, utilisez « accès offert »).");
+    if (!amt) { must(await db.from("offers").delete().eq("num", num)); return { ok: true, offer: 0 }; }
+    const ps = must(await db.from("payments").select("amount,st").eq("num", num)), used = sum(ps, "valide") + sum(ps, "attente");
+    if (used > TOTAL - amt) throw E("Cet étudiant a déjà payé " + used + " FCFA : l'offre dépasserait ce qu'il reste à payer.");
+    must(await db.from("offers").upsert({ num, amount: amt, at: Date.now() })); await syncStatus(num); return { ok: true, offer: amt, apayer: TOTAL - amt };
+  },
+  async detachPartner(d) { // l'étudiant passe sur votre lien direct : ses prochains paiements ne génèrent plus de commission
+    check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30), s = must(await db.from("students").select("num,partner").eq("num", num).maybeSingle());
+    if (!s) throw E("Étudiant introuvable.", 404); if (!s.partner) throw E("Cet étudiant n'est lié à aucun partenaire.");
+    must(await db.from("students").update({ partner: null }).eq("num", num)); return { ok: true };
+  },
+  async changeCode(d, c) { // l'étudiant choisit lui-même un nouveau code (12 caractères minimum)
+    await limit("cc:" + c.ip, 10, 3600e3);
+    const s = await findStudent(d.num, d.id, "num,id"); if (!s) throw E("Numéro ou code actuel incorrect.", 404);
+    const nw = String(d.nw || ""); if (!strongOk(nw)) throw E(WEAK_MSG); if (nw === s.id) throw E("Le nouveau code doit être différent de l'ancien.");
+    must(await db.from("students").update({ id: nw }).eq("num", s.num)); return { ok: true };
+  },
   async setOpen(d) { check(d.token, "a"); await putSetting("open", !!d.v); return { ok: true }; },
   async setProd(d) {
     check(d.token, "a");
@@ -422,13 +469,13 @@ const A = {
   },
   // ---------- Formation : administrateur ----------
   async fAdmin(d, ctx) {
-    check(d.token, "a");
-    const [c, rows, sts, ps, frs] = await Promise.all([fcfg(), db.from("formation_prog").select("num,day,sub,gt,gp,grade,att").order("sub", { ascending: false }), db.from("students").select("num,nom,prenoms"), db.from("payments").select("num,amount,st"), db.from("formation_free").select("num")]);
-    const subs = must(rows), st = must(sts), pays = must(ps), gifts = new Set(must(frs).map(x => x.num)), name = {}; st.forEach(x => name[x.num] = x.nom + " " + x.prenoms);
-    const names = hasP(ctx, "students");
-    return { me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
+    check(d.token, "a"); const cid = Math.round(+d.cohort) || await regCohort();
+    const [c, rows, sts, ps, frs] = await Promise.all([fcfg(cid), db.from("formation_prog").select("num,day,sub,gt,gp,grade,att").order("sub", { ascending: false }), studentsC("num,nom,prenoms"), db.from("payments").select("num,amount,st"), db.from("formation_free").select("num")]);
+    const all = must(sts), st = all.filter(x => (Number(x.cohort) || 1) === cid), inC = new Set(st.map(x => x.num)), subs = must(rows).filter(r => inC.has(r.num)), pays = must(ps), gifts = new Set(must(frs).map(x => x.num)), name = {}; st.forEach(x => name[x.num] = x.nom + " " + x.prenoms);
+    const names = hasP(ctx, "students"), OFS = await offersMap();
+    return { cohort: cid, cohorts: await cohortsList(all), me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
       subs: !hasP(ctx, "f_corr") ? [] : subs.filter(r => r.sub).map(r => ({ num: r.num, name: names ? (name[r.num] || r.num) : r.num, day: r.day, sub: Number(r.sub), grade: r.grade == null ? null : Number(r.grade), gt: r.gt == null ? null : Number(r.gt) })),
-      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : levelOf(paid), done: subs.filter(r => r.num === x.num && passedRow(r)).length }; }) };
+      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : levelOf(paid, OFS[x.num] || 0), done: subs.filter(r => r.num === x.num && passedRow(r)).length }; }) };
   },
   async fSub(d, c) {
     check(d.token, "a"); const n = Math.round(+d.day), x = dayDef(n), num = String(d.num || "").slice(0, 30);
@@ -489,18 +536,18 @@ const A = {
     must(await db.from("formation_notes").upsert({ day: n, note: String(d.note || "").slice(0, 6000) })); return { ok: true };
   },
   async fLaunch(d) {
-    check(d.token, "a"); const c = await fcfg();
-    if (d.reset) { must(await db.from("formation_cfg").upsert({ id: 1, launch_at: null, admin_day: 0 })); return { ok: true }; } // retour au démarrage automatique à la date prévue
+    check(d.token, "a"); const cid = Math.round(+d.cohort) || 1, c = await fcfg(cid);
+    if (d.reset) { must(await db.from("formation_cfg").upsert({ id: cid, launch_at: null, admin_day: 0 })); return { ok: true }; } // retour au démarrage automatique à la date prévue
     if (c.launch) throw E("La formation est déjà ouverte.");
-    must(await db.from("formation_cfg").upsert({ id: 1, launch_at: Date.now(), admin_day: 0 })); return { ok: true };
+    must(await db.from("formation_cfg").upsert({ id: cid, launch_at: Date.now(), admin_day: 0 })); return { ok: true };
   },
   async fSetDay(d) {
-    check(d.token, "a"); const c = await fcfg(); if (!c.launch) throw E("La formation n'est pas encore ouverte : ouvrez-la d'abord.");
-    must(await db.from("formation_cfg").upsert({ id: 1, admin_day: Math.max(0, Math.min(30, Math.round(+d.day) || 0)) })); return { ok: true };
+    check(d.token, "a"); const cid = Math.round(+d.cohort) || 1, c = await fcfg(cid); if (!c.launch) throw E("La formation n'est pas encore ouverte : ouvrez-la d'abord.");
+    must(await db.from("formation_cfg").upsert({ id: cid, admin_day: Math.max(0, Math.min(30, Math.round(+d.day) || 0)) })); return { ok: true };
   },
   async fSetStart(d) { // date de démarrage automatique (minuit, heure du Bénin)
-    check(d.token, "a"); const t = Date.parse(String(d.date || "").slice(0, 10) + "T00:00:00+01:00"); if (isNaN(t)) throw E("Date invalide.");
-    must(await db.from("formation_cfg").upsert({ id: 1, start_at: t })); return { ok: true, start: t };
+    check(d.token, "a"); const cid = Math.round(+d.cohort) || 1, t = Date.parse(String(d.date || "").slice(0, 10) + "T00:00:00+01:00"); if (isNaN(t)) throw E("Date invalide.");
+    must(await db.from("formation_cfg").upsert({ id: cid, start_at: t })); return { ok: true, start: t };
   },
   async fAccessList(d) {
     check(d.token, "a"); const ac = must(await db.from("formation_access").select("*").order("at", { ascending: false })), st = must(await db.from("students").select("num,nom,prenoms")), nm = {}; st.forEach(x => nm[x.num] = x.nom + " " + x.prenoms);
@@ -516,7 +563,7 @@ const A = {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store"); res.setHeader("X-Content-Type-Options", "nosniff");
-  if (req.method === "GET") { let st = DEFAULT_START; try { st = (await fcfg()).start; } catch (e) { /* date par défaut */ } return res.status(200).json({ serveur: "ok", tfa: !!process.env.ADMIN_TOTP_SECRET, now: Date.now(), start: st }); }
+  if (req.method === "GET") { let st = DEFAULT_START; try { st = (await fcfg(await regCohort())).start; } catch (e) { /* date par défaut */ } return res.status(200).json({ serveur: "ok", version: "promotions-2026-10-25", tfa: !!process.env.ADMIN_TOTP_SECRET, now: Date.now(), start: st }); }
   if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
   try {
     const origin = req.headers.origin; if (origin && new URL(origin).host !== req.headers.host) throw E("Origine non autorisée.", 403);
