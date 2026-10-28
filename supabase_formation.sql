@@ -113,3 +113,6 @@ alter table formation_cfg add column if not exists price int;       -- prix tota
 alter table formation_cfg add column if not exists t1 int;          -- 1re tranche (0 = paiement en une seule fois)
 alter table formation_cfg add column if not exists free_days int;   -- jours gratuits avant paiement
 alter table formation_cfg add column if not exists t1_days int;     -- jours couverts par la 1re tranche
+
+-- ===== AJOUT : civilité de l'étudiant (M., Mme, Mlle) imprimée sur l'attestation =====
+alter table students add column if not exists civ text;
