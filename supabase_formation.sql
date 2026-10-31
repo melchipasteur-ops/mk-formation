@@ -116,3 +116,9 @@ alter table formation_cfg add column if not exists t1_days int;     -- jours cou
 
 -- ===== AJOUT : civilité de l'étudiant (M., Mme, Mlle) imprimée sur l'attestation =====
 alter table students add column if not exists civ text;
+
+-- ===== AJOUT : paliers de commission des partenaires =====
+alter table partners add column if not exists tiers jsonb;
+
+-- ===== AJOUT : lien du groupe WhatsApp par promotion (vide = groupe par défaut défini dans le serveur) =====
+alter table formation_cfg add column if not exists group_link text;
