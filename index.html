@@ -471,8 +471,8 @@ const WEAK_MSG="Mot de passe trop faible : 12 caractères minimum avec au moins 
 // ====== Décompte en direct ======
 const lp=ms=>{ms=Math.max(0,ms);return{d:Math.floor(ms/864e5),h:Math.floor(ms/36e5)%24,m:Math.floor(ms/6e4)%60,s:Math.floor(ms/1e3)%60}},p2=n=>String(n).padStart(2,"0");
 function tickLive(){const now=Date.now()+CLK;
- document.querySelectorAll("[data-live]").forEach(e=>{const t=+e.dataset.live-now;if(t<=0){if(!e.dataset.done){e.dataset.done="1";e.innerHTML="<div><b>✔</b>C'est ouvert</div>";setTimeout(()=>{try{route()}catch(x){}},1500)}return}const v=lp(t);e.innerHTML=[[v.d,"jours"],[v.h,"heures"],[v.m,"minutes"],[v.s,"secondes"]].map(x=>`<div><b>${p2(x[0])}</b>${x[1]}</div>`).join("")});
- document.querySelectorAll("[data-live-i]").forEach(e=>{const t=+e.dataset.liveI-now;if(t<=0){if(!e.dataset.done){e.dataset.done="1";e.textContent="maintenant !";setTimeout(()=>{try{route()}catch(x){}},1500)}return}const v=lp(t);e.textContent=(v.d?v.d+" j ":"")+p2(v.h)+" h "+p2(v.m)+" min "+p2(v.s)+" s"})}
+ document.querySelectorAll("[data-live]").forEach(e=>{const t=+e.dataset.live-now;if(t<=0){if(!e.dataset.done){e.dataset.done="1";e.innerHTML="<div><b>✔</b>C'est ouvert</div>";/* plus de rechargement automatique : il effaçait le formulaire en cours de saisie */}return}const v=lp(t);e.innerHTML=[[v.d,"jours"],[v.h,"heures"],[v.m,"minutes"],[v.s,"secondes"]].map(x=>`<div><b>${p2(x[0])}</b>${x[1]}</div>`).join("")});
+ document.querySelectorAll("[data-live-i]").forEach(e=>{const t=+e.dataset.liveI-now;if(t<=0){if(!e.dataset.done){e.dataset.done="1";e.textContent="maintenant !";setTimeout(()=>{if(!document.querySelector("#f"))try{route()}catch(x){}},1500)}return}const v=lp(t);e.textContent=(v.d?v.d+" j ":"")+p2(v.h)+" h "+p2(v.m)+" min "+p2(v.s)+" s"})}
 setInterval(tickLive,1000);
 // ====== Codes des étudiants ======
 async function upgradeCodeUI(){const c=window.CRED;if(!confirm("Générer un nouveau code de sécurité de 12 caractères ?\n\nL'ancien code ne fonctionnera plus. Notez le nouveau code dès qu'il s'affiche."))return;
