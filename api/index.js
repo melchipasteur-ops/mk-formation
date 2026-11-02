@@ -209,13 +209,32 @@ function cleanData(d) {
 }
 const recOut = r => r ? { ...(r.data || {}), sub: Number(r.sub || 0), grade: r.grade == null ? null : Number(r.grade), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), comment: r.comment || "", att: r.att || 0 } : {};
 
+
+// ===================== FORMATION : vidéos et images des cours (stockage privé) =====================
+// Les fichiers sont dans un bucket PRIVÉ : aucune adresse publique. L'étudiant reçoit uniquement des liens signés qui expirent (2 h),
+// et seulement pour les médias que l'administrateur a rendus visibles (pour tous ou pour des étudiants précis).
+const MBUCKET = "formation-media", MTTL = 7200, MMAX = 500 * 1024 * 1024;
+const MMIME = { "video/mp4": ["video", "mp4"], "video/webm": ["video", "webm"], "video/quicktime": ["video", "mov"], "image/jpeg": ["image", "jpg"], "image/png": ["image", "png"], "image/webp": ["image", "webp"], "image/gif": ["image", "gif"] };
+const mNums = v => [...new Set((Array.isArray(v) ? v : String(v || "").split(/[\s,;]+/)).map(x => String(x || "").trim().toUpperCase().slice(0, 30)).filter(Boolean))].slice(0, 500);
+const mSigned = async rows => { const out = {}; if (!rows.length) return out; const r = await db.storage.from(MBUCKET).createSignedUrls(rows.map(x => x.path), MTTL); (r.data || []).forEach(x => { if (x && x.signedUrl) out[x.path] = x.signedUrl; }); return out; };
+const mAdminOut = (x, url) => ({ id: x.id, day: Number(x.day), kind: x.kind, title: x.title || "", vis: x.vis || "off", nums: Array.isArray(x.nums) ? x.nums : [], ready: !!x.ready, size: Number(x.size || 0), url: url || "" });
+// Médias visibles pour un étudiant donné (jamais d'erreur bloquante : le cours doit toujours s'afficher)
+const mediaFor = async (n, num, preview) => {
+  try {
+    const rows = must(await db.from("formation_media").select("*").eq("day", n).eq("ready", true).order("pos", { ascending: true }))
+      .filter(x => preview ? (x.vis || "off") !== "off" : x.vis === "all" || (x.vis === "some" && Array.isArray(x.nums) && x.nums.includes(String(num).toUpperCase())));
+    const u = await mSigned(rows);
+    return rows.filter(x => u[x.path]).map(x => ({ id: x.id, kind: x.kind, title: x.title || "", url: u[x.path] }));
+  } catch (e) { return []; }
+};
+
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
 const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
-  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
+  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
-const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
+const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
 async function adminCtx(token) {
   let t; try { t = check(token, "a"); } catch (e) { return null; }
   if (!t.u || t.u === "root") return { root: true, id: "root", name: "Administrateur principal", pm: Object.keys(PERMS) };
@@ -554,7 +573,41 @@ const A = {
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; return { rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; return { rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
+  },
+  // ---------- Formation : vidéos et images des cours (administrateur, droit « cours et notes ») ----------
+  async fMediaList(d) {
+    check(d.token, "a"); const rows = must(await db.from("formation_media").select("*").order("day", { ascending: true }).order("pos", { ascending: true })), u = await mSigned(rows.filter(x => x.ready));
+    return { list: rows.map(x => mAdminOut(x, u[x.path])), max: MMAX };
+  },
+  async fMediaInit(d) { // étape 1 : réserve l'emplacement et donne une adresse d'envoi signée (le fichier ne passe pas par le serveur)
+    check(d.token, "a"); const day = Math.round(+d.day), mt = String(d.mime || "").toLowerCase(), M = MMIME[mt], size = Math.round(+d.size);
+    if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
+    if (!M) throw E("Format non accepté. Vidéo : MP4, WebM ou MOV. Image : JPG, PNG, WEBP ou GIF.");
+    if (!(size > 0 && size <= MMAX)) throw E("Fichier trop gros (" + Math.round(MMAX / 1048576) + " Mo maximum).");
+    const id = rnd(12), path = id + "." + M[1], title = String(d.title || "").trim().slice(0, 120);
+    const r = await db.storage.from(MBUCKET).createSignedUploadUrl(path); if (r.error || !r.data) throw E("Stockage indisponible : le bucket « " + MBUCKET + " » existe-t-il ? (voir supabase_formation.sql)", 500);
+    must(await db.from("formation_media").insert({ id, day, kind: M[0], title, path, size, mime: mt, vis: "off", nums: [], ready: false, pos: Date.now(), created: Date.now() }));
+    return { id, url: r.data.signedUrl };
+  },
+  async fMediaDone(d) { // étape 2 : vérifie que le fichier est bien arrivé, puis le déclare prêt (toujours masqué au départ)
+    check(d.token, "a"); const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_media").select("*").eq("id", id).maybeSingle()); if (!x) throw E("Média introuvable.", 404);
+    const t = await db.storage.from(MBUCKET).createSignedUrl(x.path, 60); if (t.error || !t.data) { must(await db.from("formation_media").delete().eq("id", id)); throw E("Le fichier n'est pas arrivé complet. Réessayez l'envoi."); }
+    must(await db.from("formation_media").update({ ready: true }).eq("id", id)); return { ok: true };
+  },
+  async fMediaSet(d) {
+    check(d.token, "a"); const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_media").select("id").eq("id", id).maybeSingle()); if (!x) throw E("Média introuvable.", 404);
+    const up = {}; if (d.title != null) up.title = String(d.title).trim().slice(0, 120);
+    if (d.day != null) { const day = Math.round(+d.day); if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30)."); up.day = day; }
+    let unknown = [];
+    if (d.vis != null) { if (!["off", "all", "some"].includes(d.vis)) throw E("Visibilité invalide."); up.vis = d.vis; }
+    if (d.nums != null) { const want = mNums(d.nums), have = new Set(must(await db.from("students").select("num")).map(s => s.num)); up.nums = want.filter(n => have.has(n)); unknown = want.filter(n => !have.has(n)); }
+    if (up.vis === "some" && up.nums && !up.nums.length) throw E("Indiquez au moins un numéro d'étudiant valide" + (unknown.length ? " (inconnu : " + unknown.join(", ") + ")" : "") + ".");
+    must(await db.from("formation_media").update(up).eq("id", id)); return { ok: true, unknown };
+  },
+  async fMediaDel(d) {
+    check(d.token, "a"); const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_media").select("path").eq("id", id).maybeSingle()); if (!x) throw E("Média introuvable.", 404);
+    await db.storage.from(MBUCKET).remove([x.path]); must(await db.from("formation_media").delete().eq("id", id)); return { ok: true };
   },
   async fSave(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fv", 900); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm), p = pm[n];
