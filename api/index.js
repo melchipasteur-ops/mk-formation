@@ -154,6 +154,30 @@ const passed30 = async num => must(await db.from("formation_prog").select("day,g
 const isFree = async num => !!must(await db.from("formation_free").select("num").eq("num", String(num || "")).maybeSingle());
 // "gift" = accès offert : jamais exposé à l'étudiant (il voit simplement « accès complet »)
 const fInfo = (paid, pend, c, gift, ov, off = 0) => { const P = c.pr || pricingOf(null), hasT1 = P.t1 > 0 && paid >= P.t1, open = Math.min(30, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0)), full = gift || paid >= P.total - off; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < 30 ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, openDay: open, paid, pend, level: full ? 30 : levelOf(paid, off, P), plan: full ? "complet" : hasT1 ? "tranche1" : "gratuit", remaining: !full && hasT1 ? Math.max(0, P.t1days - open) : null, freeLeft: !full && !hasT1 ? Math.max(0, P.free - open) : null, T1: P.t1, TOTAL: P.total - off, base: P.total, offer: off, free: P.free, t1days: P.t1days }; };
+// Classements : rang du jour (parmi les notes du jour) et rang général (par moyenne), dans la promotion de l'étudiant. Égalités = même rang.
+const rankFrom = rows => {
+  const byDay = {}, sums = {};
+  rows.forEach(r => { if (r.grade == null) return; const g = Number(r.grade); (byDay[r.day] = byDay[r.day] || []).push(g); const a = sums[r.num] = sums[r.num] || { s: 0, n: 0 }; a.s += g; a.n++; });
+  const avg = {}; for (const n in sums) avg[n] = Math.round(sums[n].s / sums[n].n * 100) / 100;
+  const avgs = Object.values(avg), rk = (arr, v) => 1 + arr.filter(x => x > v).length, mean = a => a.length ? Math.round(a.reduce((t, x) => t + x, 0) / a.length * 100) / 100 : null;
+  const dayAvg = {}; for (const d in byDay) dayAvg[d] = mean(byDay[d]);
+  return { avg, nr: avgs.length, classAvg: mean(avgs), dayAvg, dayRank: (day, g) => byDay[day] ? { r: rk(byDay[day], Number(g)), n: byDay[day].length } : null, genRank: num => avg[num] == null ? null : { r: rk(avgs, avg[num]), n: avgs.length } };
+};
+const rankCache = {};
+const rankInfo = async cid => {
+  const c = rankCache[cid]; if (c && Date.now() - c.t < 30000) return c.v;
+  const cm = await cohortMap(), v = rankFrom(must(await db.from("formation_prog").select("num,day,grade")).filter(r => r.grade != null && (cm[r.num] || 1) === cid));
+  rankCache[cid] = { t: Date.now(), v }; return v;
+};
+// Note d'un travail : combine la note du travail (gp) et le score du quiz (gt) ; renvoie null s'il n'y a pas de remise
+const gradeOne = async (num, n, g, comment) => {
+  const r = must(await db.from("formation_prog").select("sub,gt").eq("num", num).eq("day", n).maybeSingle()); if (!r || !r.sub) return null;
+  const fin = r.gt == null ? g : Math.round((g * (1 - WT) + Number(r.gt) * WT) * 10) / 10;
+  must(await db.from("formation_prog").update({ gp: g, grade: fin, comment: String(comment || "").slice(0, 600), gat: Date.now() }).eq("num", num).eq("day", n));
+  if (fin >= PASSM) { const all = must(await db.from("formation_prog").select("day,grade").eq("num", num)); if (all.filter(x => x.grade != null && Number(x.grade) >= PASSM).length >= 30) must(await db.from("students").update({ termine: true }).eq("num", num)); }
+  Object.keys(rankCache).forEach(k => delete rankCache[k]);
+  return fin;
+};
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
 const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n > fx.level ? "pay" : n > fx.openDay ? "wait" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
 const reasonOf = (a, n, fx) => a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
@@ -189,7 +213,7 @@ const recOut = r => r ? { ...(r.data || {}), sub: Number(r.sub || 0), grade: r.g
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
 const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
-  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
+  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
 const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
 async function adminCtx(token) {
@@ -530,7 +554,7 @@ const A = {
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const tc = CT.teach[n] || {}; return { day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; return { rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, ro: !!ro };
   },
   async fSave(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fv", 900); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm), p = pm[n];
@@ -557,10 +581,10 @@ const A = {
     check(d.token, "a"); const cid = Math.round(+d.cohort) || await regCohort();
     const [c, rows, sts, ps, frs] = await Promise.all([fcfg(cid), db.from("formation_prog").select("num,day,sub,gt,gp,grade,att").order("sub", { ascending: false }), studentsC("num,nom,prenoms"), db.from("payments").select("num,amount,st"), db.from("formation_free").select("num")]);
     const all = must(sts), st = all.filter(x => (Number(x.cohort) || 1) === cid), inC = new Set(st.map(x => x.num)), subs = must(rows).filter(r => inC.has(r.num)), pays = must(ps), gifts = new Set(must(frs).map(x => x.num)), name = {}; st.forEach(x => name[x.num] = x.nom + " " + x.prenoms);
-    const names = hasP(ctx, "students"), OFS = await offersMap(), PMX = await pricesMap();
-    return { cohort: cid, cohorts: await cohortsList(all), me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
+    const names = hasP(ctx, "students"), OFS = await offersMap(), PMX = await pricesMap(), RK = rankFrom(subs);
+    return { stats: { classAvg: RK.classAvg, nr: RK.nr, dayAvg: RK.dayAvg }, cohort: cid, cohorts: await cohortsList(all), me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
       subs: !hasP(ctx, "f_corr") ? [] : subs.filter(r => r.sub).map(r => ({ num: r.num, name: names ? (name[r.num] || r.num) : r.num, day: r.day, sub: Number(r.sub), grade: r.grade == null ? null : Number(r.grade), gt: r.gt == null ? null : Number(r.gt) })),
-      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : levelOf(paid, OFS[x.num] || 0, PMX[Number(x.cohort) || 1]), done: subs.filter(r => r.num === x.num && passedRow(r)).length }; }) };
+      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : levelOf(paid, OFS[x.num] || 0, PMX[Number(x.cohort) || 1]), done: subs.filter(r => r.num === x.num && passedRow(r)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num) }; }) };
   },
   async fSub(d, c) {
     check(d.token, "a"); const n = Math.round(+d.day), x = dayDef(n), num = String(d.num || "").slice(0, 30);
@@ -573,24 +597,28 @@ const A = {
   async fGrade(d) {
     check(d.token, "a"); const n = Math.round(+d.day), num = String(d.num || "").slice(0, 30), g = Number(d.gp);
     if (!(g >= 0 && g <= 20)) throw E("Note invalide (0 à 20).");
-    const r = must(await db.from("formation_prog").select("sub,gt").eq("num", num).eq("day", n).maybeSingle()); if (!r || !r.sub) throw E("Aucune remise à noter.", 404);
-    const fin = r.gt == null ? g : Math.round((g * (1 - WT) + Number(r.gt) * WT) * 10) / 10;
-    must(await db.from("formation_prog").update({ gp: g, grade: fin, comment: String(d.comment || "").slice(0, 600), gat: Date.now() }).eq("num", num).eq("day", n));
-    if (fin >= PASSM) { const all = must(await db.from("formation_prog").select("day,grade").eq("num", num)); if (all.filter(x => x.grade != null && Number(x.grade) >= PASSM).length >= 30) must(await db.from("students").update({ termine: true }).eq("num", num)); }
+    const fin = await gradeOne(num, n, g, d.comment); if (fin == null) throw E("Aucune remise à noter.", 404);
     return { ok: true, grade: fin };
+  },
+  async fGradeBulk(d) { // même note de travail pour plusieurs remises (sélection ou toutes les remises affichées)
+    check(d.token, "a"); const g = Number(d.gp); if (!(g >= 0 && g <= 20)) throw E("Note invalide (0 à 20).");
+    const items = (Array.isArray(d.items) ? d.items : []).map(x => ({ num: String(x && x.num || "").slice(0, 30), day: Math.round(+(x && x.day)) })).filter(x => x.num && x.day >= 1 && x.day <= 30);
+    if (!items.length) throw E("Aucun travail à noter."); if (items.length > 1000) throw E("1000 travaux maximum à la fois.");
+    let done = 0, skipped = 0; for (const it of items) { const fin = await gradeOne(it.num, it.day, g, d.comment); if (fin == null) skipped++; else done++; }
+    return { ok: true, done, skipped };
   },
   // ---------- Formation : bulletin de notes et fiches de correction (étudiant) ----------
   async fBulletin(d, c) {
-    const { s, pm } = await fctx(d, c, "fb"), rows = CT.course.map(x => { const r = pm[x.n]; return { n: x.n, title: x.title, week: x.week, proj: x.proj, sub: r && r.sub ? Number(r.sub) : 0, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null, grade: r && r.grade != null ? Number(r.grade) : null, gat: r && r.gat ? Number(r.gat) : 0 }; });
-    const gr = rows.filter(r => r.grade != null), ok = gr.filter(r => r.grade >= PASSM), avg = gr.length ? Math.round(gr.reduce((t, r) => t + r.grade, 0) / gr.length * 10) / 10 : null;
-    return { name: (s.nom + " " + s.prenoms).trim(), num: s.num, rows, validated: ok.length, total: CT.course.length, avg, complete: ok.length === CT.course.length, mention: ok.length === CT.course.length ? (avg >= 18 ? "Excellent" : avg >= 16 ? "Très bien" : "Bien") : "", date: Date.now() };
+    const { s, pm } = await fctx(d, c, "fb"), R = await rankInfo(await cohortOf(s.num)), rows = CT.course.map(x => { const r = pm[x.n]; return { rk: r && r.grade != null ? R.dayRank(x.n, r.grade) : null, cav: R.dayAvg[x.n] != null ? R.dayAvg[x.n] : null, n: x.n, title: x.title, week: x.week, proj: x.proj, sub: r && r.sub ? Number(r.sub) : 0, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null, grade: r && r.grade != null ? Number(r.grade) : null, gat: r && r.gat ? Number(r.gat) : 0 }; });
+    const gr = rows.filter(r => r.grade != null), ok = gr.filter(r => r.grade >= PASSM), avg = gr.length ? Math.round(gr.reduce((t, r) => t + r.grade, 0) / gr.length * 100) / 100 : null;
+    return { rank: R.genRank(s.num), classAvg: R.classAvg, nr: R.nr, name: (s.nom + " " + s.prenoms).trim(), num: s.num, rows, validated: ok.length, total: CT.course.length, avg, complete: ok.length === CT.course.length, mention: ok.length === CT.course.length ? (avg >= 18 ? "Excellent" : avg >= 16 ? "Très bien" : "Bien") : "", date: Date.now() };
   },
   async fFiche(d, c) {
     const { s, pm } = await fctx(d, c, "ff"), n = Math.round(+d.day), x = dayDef(n); if (!x) throw E("Jour inconnu.", 404);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
     if (!r || r.grade == null) throw E("La fiche de correction sera disponible une fois votre travail corrigé.", 403);
-    const dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, tc = CT.teach[n] || {}, good = q => q[0] === "qcm" ? q[2][q[3]] : q[0] === "vf" ? (q[2] ? "Vrai" : "Faux") : q[2][0];
-    return { n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
+    const R = await rankInfo(await cohortOf(s.num)), dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, tc = CT.teach[n] || {}, good = q => q[0] === "qcm" ? q[2][q[3]] : q[0] === "vf" ? (q[2] ? "Vrai" : "Faux") : q[2][0];
+    return { rk: R.dayRank(n, r.grade), dayAvg: R.dayAvg[n] != null ? R.dayAvg[n] : null, n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
       sub: Number(r.sub || 0), gat: Number(r.gat || 0), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), grade: Number(r.grade), comment: r.comment || "", att: r.att || 0,
       data: { answer: dt.answer || "", files: dt.files || {}, shot: dt.shot || "", steps: dt.steps || [], ex: dt.ex || [] },
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i], good: good(q), ex: qexp(q) })) } : null };
@@ -600,11 +628,13 @@ const A = {
     check(d.token, "a"); const fr = must(await db.from("formation_free").select("*").order("at", { ascending: false })), st = must(await db.from("students").select("num,nom,prenoms")), nm = {}; st.forEach(x => nm[x.num] = x.nom + " " + x.prenoms);
     return { list: fr.map(x => ({ num: x.num, name: nm[x.num] || x.num, note: x.note || "", at: Number(x.at || 0) })) };
   },
-  async fFreeSet(d) {
-    check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30);
-    const s = must(await db.from("students").select("num").eq("num", num).maybeSingle()); if (!s) throw E("Aucun étudiant avec ce numéro.", 404);
-    if (d.on) must(await db.from("formation_free").upsert({ num, note: String(d.note || "").slice(0, 200), at: Date.now() })); else must(await db.from("formation_free").delete().eq("num", num));
-    return { ok: true };
+  async fFreeSet(d) { // un ou plusieurs étudiants : d.num ou d.nums
+    check(d.token, "a"); const nums = [...new Set([].concat(d.nums || d.num || []).map(x => String(x || "").toUpperCase().trim().slice(0, 30)).filter(Boolean))].slice(0, 300);
+    if (!nums.length) throw E("Indiquez au moins un étudiant.");
+    const found = must(await db.from("students").select("num").in("num", nums)).map(x => x.num), missing = nums.filter(n => !found.includes(n));
+    if (missing.length) throw E("Aucun étudiant avec le numéro : " + missing.join(", ") + ".", 404);
+    if (d.on) must(await db.from("formation_free").upsert(nums.map(num => ({ num, note: String(d.note || "").slice(0, 200), at: Date.now() })))); else must(await db.from("formation_free").delete().in("num", nums));
+    return { ok: true, n: nums.length };
   },
   // ---------- Formation : cours complets avec notes pour professeur (administrateur) ----------
   async fCourses(d) {
@@ -648,7 +678,7 @@ const A = {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store"); res.setHeader("X-Content-Type-Options", "nosniff");
-  if (req.method === "GET") { let st = DEFAULT_START, pr = pricingOf(null); try { const rc = await fcfg(await regCohort()); st = rc.start; pr = rc.pr; } catch (e) { /* valeurs par défaut */ } return res.status(200).json({ serveur: "ok", version: "vip-2026-10-31", tfa: !!process.env.ADMIN_TOTP_SECRET, now: Date.now(), start: st, pr }); }
+  if (req.method === "GET") { let st = DEFAULT_START, pr = pricingOf(null); try { const rc = await fcfg(await regCohort()); st = rc.start; pr = rc.pr; } catch (e) { /* valeurs par défaut */ } return res.status(200).json({ serveur: "ok", version: "rangs-2026-11-02", tfa: !!process.env.ADMIN_TOTP_SECRET, now: Date.now(), start: st, pr }); }
   if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
   try {
     const origin = req.headers.origin; if (origin && new URL(origin).host !== req.headers.host) throw E("Origine non autorisée.", 403);
