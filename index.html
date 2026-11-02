@@ -420,10 +420,6 @@ async function expPDF(k){if(!window.jspdf)return alert("Module PDF non chargé. 
  const head=()=>{d.setFont("helvetica","bold");d.setFontSize(8);d.setFillColor(10,42,107);d.rect(10,y-4,274,6,"F");d.setTextColor(255,255,255);let x=11;HEAD.forEach((h,i)=>{d.text(h,x,y);x+=W[i]});d.setTextColor(20,20,20);y+=6};
  d.addImage(LOGO,"JPEG",10,6,60,10.9);d.setFontSize(13);d.setFont("helvetica","bold");d.text(L.t+" ("+rows.length+")",80,12);d.setFontSize(8);d.setFont("helvetica","normal");d.text("Édité le "+fdt(Date.now()),80,17);head();
  rows.forEach((r,ri)=>{if(y>196){d.addPage();y=14;head()}if(ri%2){d.setFillColor(238,244,255);d.rect(10,y-4,274,5.5,"F")}d.setFont("helvetica","normal");d.setFontSize(7.5);let x=11;r.forEach((v,i)=>{d.text(String(v).slice(0,Math.floor(W[i]/1.55)),x,y);x+=W[i]});y+=5.5});
- if(y>166){d.addPage();y=14}
- d.setFont("helvetica","normal");d.setFontSize(9);d.setTextColor(10,42,107);d.text("Fait à Cotonou, le "+fdt(Date.now()),284,y+4,{align:"right"});
- try{d.addImage(IMG.tampon,"PNG",228,y+6,26,26.2);d.addImage(IMG.sig,"PNG",247,y+9,34,23.3)}catch(e){}
- d.setFont("helvetica","bold");d.setFontSize(8.5);d.text("Le PDG, HOUNGBADJI E. Melchisédèk",284,y+36,{align:"right"});
  dl(slug(k)+".pdf",d.output("arraybuffer"))}
 function expDOC(k){const L=LISTS[k],rows=listRows(k);const h="<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><title>"+esc(L.t)+"</title><style>body{font-family:Arial}table{border-collapse:collapse;width:100%}td,th{border:1px solid #888;padding:4px;font-size:10pt}th{background:#0a2a6b;color:#fff}</style></head><body><h2>MK-DESIGN GRAPH – "+esc(L.t)+"</h2><p>Édité le "+fdt(Date.now())+" – "+rows.length+" personne(s)</p><table><tr>"+HEAD.map(x=>"<th>"+x+"</th>").join("")+"</tr>"+rows.map(r=>"<tr>"+r.map(v=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table></body></html>";dl(slug(k)+".doc","\ufeff"+h)}
 function expCSV(k){const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';dl(slug(k)+".csv","\ufeff"+[HEAD].concat(listRows(k)).map(r=>r.map(q).join(";")).join("\n"))}
