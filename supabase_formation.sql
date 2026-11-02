@@ -125,26 +125,32 @@ alter table formation_cfg add column if not exists group_link text;
 
 
 -- ===== AJOUT : vidéos et images des cours (stockage PRIVÉ) =====
--- 1) Bucket privé : aucune adresse publique, seuls des liens signés temporaires sont donnés aux étudiants autorisés.
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('formation-media', 'formation-media', false, 524288000)
-on conflict (id) do update set public = false;
+-- Tout est dans UN SEUL bloc DO : une seule commande, donc compatible avec les éditeurs qui refusent
+-- « plusieurs commandes dans une instruction préparée ». À coller seul dans Supabase > SQL Editor > Run.
+do $$
+begin
+  -- 1) Bucket privé : aucune adresse publique, seuls des liens signés temporaires sont donnés aux étudiants autorisés
+  insert into storage.buckets (id, name, public, file_size_limit)
+  values ('formation-media', 'formation-media', false, 524288000)
+  on conflict (id) do update set public = false;
 
--- 2) Liste des médias et de leur visibilité
-create table if not exists formation_media (
-  id text primary key,
-  day int not null,              -- jour du cours (1 à 30)
-  kind text not null,            -- 'video' ou 'image'
-  title text,
-  path text not null,            -- nom du fichier dans le bucket
-  size bigint,
-  mime text,
-  vis text default 'off',        -- 'off' = masqué, 'all' = tous les étudiants, 'some' = étudiants choisis
-  nums jsonb default '[]'::jsonb,-- numéros d'attribution autorisés quand vis = 'some'
-  ready boolean default false,   -- vrai quand l'envoi du fichier est terminé
-  pos bigint,
-  created bigint
-);
-create index if not exists formation_media_day on formation_media(day);
-alter table formation_media enable row level security;
-revoke all on formation_media from anon, authenticated;
+  -- 2) Liste des médias et de leur visibilité
+  create table if not exists public.formation_media (
+    id text primary key,
+    day int not null,               -- jour du cours (1 à 30)
+    kind text not null,             -- 'video' ou 'image'
+    title text,
+    path text not null,             -- nom du fichier dans le bucket
+    size bigint,
+    mime text,
+    vis text default 'off',         -- 'off' = masqué, 'all' = tous les étudiants, 'some' = étudiants choisis
+    nums jsonb default '[]'::jsonb, -- numéros d'attribution autorisés quand vis = 'some'
+    ready boolean default false,    -- vrai quand l'envoi du fichier est terminé
+    pos bigint,
+    created bigint
+  );
+  create index if not exists formation_media_day on public.formation_media(day);
+  alter table public.formation_media enable row level security;
+  revoke all on public.formation_media from anon, authenticated;
+end
+$$;
