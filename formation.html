@@ -423,8 +423,8 @@ async function admin(){if(!AT()){app.innerHTML=`<div class="hero"><img class="lo
  if(!tabs.length){app.innerHTML=`<div class="card"><h2>Aucun droit pour la formation</h2><p>Demandez à l'administrateur principal de vous accorder un accès.</p><p><a href="/"><button class="s">Retour au site</button></a></p></div>`;return}
  if(!tabs.some(x=>x[0]==ATAB))ATAB=tabs[0][0];
  app.innerHTML=admBar()+`<div class="top"><h1>🎓 Formation</h1><small>Connecté : ${esc(ME.name)}</small></div>${(S.cohorts||[]).length>1?`<div class="card np"><label>📆 Promotion affichée</label><select onchange="COH=+this.value;admin()">${S.cohorts.map(c=>`<option value="${c.id}" ${c.id==S.cohort?"selected":""}>${esc(c.name)} · début ${fdl(c.start)} · ${c.n} étudiant(s)${c.registering?" · inscriptions ouvertes ici":""}</option>`).join("")}</select><small>Le lancement, l’ouverture des jours et les travaux ci-dessous concernent uniquement cette promotion.</small></div>`:""}<div class="tabs">${tabs.map(([k,l])=>`<button class="${ATAB==k?"on":""}" onclick="ATAB='${k}';admin()">${l}</button>`).join("")}</div><div id="ab"></div>`;
- window.AS=S;({dash:dashTab,note:noteTab,stu:stuTab,crs:crsTab,gift:giftTab})[ATAB](S)}
-function noteTab(S){window.AS=S;$("#ab").innerHTML=`<div class="card" id="gcard">${gradeCardInner()}</div>`}
+ AS=S;({dash:dashTab,note:noteTab,stu:stuTab,crs:crsTab,gift:giftTab})[ATAB](S)}
+function noteTab(S){AS=S;$("#ab").innerHTML=`<div class="card" id="gcard">${gradeCardInner()}</div>`}
 const toDays=t=>Math.max(0,Math.ceil((t-Date.now())/864e5));
 const admBar=back=>`<div class="navbar np">${back?`<button class="s" onclick="${back}">← Retour</button>`:""}<button class="s" onclick="admin()">🎓 Formation</button><a href="/#/adminmelchi97"><button class="s" type="button">📊 Tableau de bord du site</button></a>${window.HAS&&HAS("partners")?`<a href="/#/adminmelchi97/gest"><button class="s" type="button">🤝 Partenaires</button></a>`:""}<button class="s" style="margin-left:auto" onclick="adminLogout()">🔒 Déconnexion</button></div>`;
 function adminLogout(){sessionStorage.removeItem("f_at");sessionStorage.removeItem("f_me");admin()}
@@ -444,7 +444,7 @@ async function accessSet(){try{await aapi("fAccessSet",{num:$("#an").value.trim(
 async function accessOff(num){try{await aapi("fAccessSet",{num,on:false});toast("Accès retiré");admin()}catch(e){toast(e.message)}}
 async function loadAccess(){const el=$("#acl");if(!el)return;try{const X=await aapi("fAccessList");el.innerHTML=X.list.length?`<h3>Ouvertures individuelles (${X.list.length})</h3><div class="tw"><table><tr><th>Étudiant</th><th>Jusqu'au jour</th><th>Note</th><th></th></tr>${X.list.map(x=>`<tr><td>${esc(x.name)}<br><small>${esc(x.num)}</small></td><td>${x.day}</td><td>${esc(x.note)}</td><td><button class="r" onclick="arm(this,()=>accessOff('${esc(x.num)}'),'Confirmer')">Retirer</button></td></tr>`).join("")}</table></div>`:""}catch(e){}}
 window.GF={st:"pend",day:0};window.SEL=new Set();window.GSEL=new Set();
-function dashTab(S){window.AS=S;const c=S.cfg,td=S.subs.filter(x=>x.grade==null);
+function dashTab(S){AS=S;const c=S.cfg,td=S.subs.filter(x=>x.grade==null);
  $("#ab").innerHTML=`<div class="kp"><div class="kc k1"><b>${S.students.length||"-"}</b><small>étudiants</small></div><div class="kc k2"><b>${HAS("f_corr")?td.length:"-"}</b><small>travaux à corriger</small></div><div class="kc k3"><b>${c.openDay}/30</b><small>jour ouvert</small></div><div class="kc k4"><b>${HAS("f_view")?S.students.filter(x=>x.done>=30).length:"-"}</b><small>ont validé les 30 jours</small></div></div>
  ${HAS("f_corr")&&td.length?`<div class="note warn np">📝 <b>${td.length} travail(aux) à noter.</b> <button class="g" onclick="ATAB='note';admin()">Ouvrir la notation</button></div>`:""}
  ${HAS("f_ctl")?startCard(S):""}
