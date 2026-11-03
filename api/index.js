@@ -203,7 +203,9 @@ function cleanData(d) {
   const o = {}, arr = a => Array.isArray(a) ? a.slice(0, 60).map(Boolean) : [];
   o.steps = arr(d.steps); o.ex = arr(d.ex); o.answer = String(d.answer || "").slice(0, 4000); o.files = {};
   if (d.files && typeof d.files === "object") Object.entries(d.files).slice(0, 10).forEach(([k, v]) => { if (/^[\w\-]{1,40}\.(html|css|js|php|txt)$/i.test(k)) o.files[k] = String(v).slice(0, 60000); });
-  o.shot = img(d.shot) ? d.shot : ""; o.qa = {};
+  // Images du travail à partager avec le formateur : plusieurs (8 max). L'ancien champ « shot » (une seule image) est converti.
+  { let imgs = (Array.isArray(d.shots) ? d.shots : []).filter(img); if (!imgs.length && img(d.shot)) imgs = [d.shot]; let tot = 0; o.shots = imgs.slice(0, 8).filter(x => (tot += x.length) < 3300000); o.shot = ""; }
+  o.qa = {};
   if (d.qa && typeof d.qa === "object") Object.entries(d.qa).slice(0, 20).forEach(([k, v]) => { if (/^\d{1,2}$/.test(k) && ["number", "boolean", "string"].includes(typeof v)) o.qa[k] = typeof v === "string" ? v.slice(0, 200) : v; });
   return o;
 }
@@ -383,7 +385,7 @@ const A = {
   async audit(d, c) { needRoot(d, c); return { list: must(await db.from("admin_audit").select("*").order("at", { ascending: false }).limit(300)).map(x => ({ ...x, at: Number(x.at) })) }; },
   async backup(d, c) {
     needRoot(d, c); const T = ["students", "payments", "partners", "payouts", "dreq", "log", "settings", "formation_cfg", "formation_prog", "formation_free", "formation_access", "formation_notes", "admins", "admin_audit"], out = { date: Date.now(), tables: {}, note: "Les photos, captures et mots de passe ne sont pas inclus." };
-    for (const t of T) { try { out.tables[t] = must(await db.from(t).select("*")).map(r => { const o = { ...r }; ["photo", "shot", "pin", "pin_hash", "pass_hash"].forEach(k => delete o[k]); if (o.data && o.data.shot) o.data = { ...o.data, shot: "(image non incluse)" }; return o; }); } catch (e) { out.tables[t] = "(table absente)"; } }
+    for (const t of T) { try { out.tables[t] = must(await db.from(t).select("*")).map(r => { const o = { ...r }; ["photo", "shot", "pin", "pin_hash", "pass_hash"].forEach(k => delete o[k]); if (o.data && o.data.shot) o.data = { ...o.data, shot: "(image non incluse)" }; if (o.data && o.data.shots) o.data = { ...o.data, shots: "(images non incluses)" }; return o; }); } catch (e) { out.tables[t] = "(table absente)"; } }
     return out;
   },
   async partnerLogin({ code, pin }, c) {
@@ -624,7 +626,7 @@ const A = {
     if (passedRow(p)) throw E("Ce jour est déjà validé.", 409);
     const r = must(await db.from("formation_prog").select("data").eq("num", s.num).eq("day", n).maybeSingle()), dt = (r && r.data) || {}, code = n >= 16 && n <= 29;
     if (code && Object.values(dt.files || {}).reduce((t, x) => t + String(x).trim().length, 0) < 20) throw E("Écrivez d'abord votre code dans l'éditeur.");
-    if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot) throw E("Ajoutez un lien, une description ou une capture d'écran.");
+    if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot && !(dt.shots && dt.shots.length)) throw E("Ajoutez un lien, une description ou au moins une image de votre travail.");
     const Q = quizOf(n), qa = dt.qa || {}; if (Q && Q.some((q, i) => qa[i] == null || qa[i] === "")) throw E("Répondez d'abord à toutes les questions théoriques.");
     const sc = qscore(n, qa);
     must(await db.from("formation_prog").upsert({ num: s.num, day: n, sub: Date.now(), grade: null, gp: null, gt: sc ? sc.v : null, comment: "", att: (p && p.att || 0) + 1 })); return { ok: true };
@@ -673,7 +675,7 @@ const A = {
     const R = await rankInfo(await cohortOf(s.num)), dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, tc = CT.teach[n] || {}, good = q => q[0] === "qcm" ? q[2][q[3]] : q[0] === "vf" ? (q[2] ? "Vrai" : "Faux") : q[2][0];
     return { rk: R.dayRank(n, r.grade), dayAvg: R.dayAvg[n] != null ? R.dayAvg[n] : null, n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
       sub: Number(r.sub || 0), gat: Number(r.gat || 0), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), grade: Number(r.grade), comment: r.comment || "", att: r.att || 0,
-      data: { answer: dt.answer || "", files: dt.files || {}, shot: dt.shot || "", steps: dt.steps || [], ex: dt.ex || [] },
+      data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []), steps: dt.steps || [], ex: dt.ex || [] },
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i], good: good(q), ex: qexp(q) })) } : null };
   },
   // ---------- Formation : accès offerts (confidentiel, administrateur uniquement) ----------
