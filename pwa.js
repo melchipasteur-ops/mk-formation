@@ -70,6 +70,8 @@
       L.push("    Navigateur intégré (WhatsApp, Facebook…) : " + (inapp ? "OUI → Chrome ne permet pas d'installer ici, ouvrez dans Chrome" : "non"));
       L.push("    Appareil : " + (ios ? "iPhone/iPad" : android ? "Android" : "ordinateur") + " | " + ua.slice(0, 110));
       L.push("    Service worker : " + swState);
+      var cv = /(?:Chrome|CriOS|EdgA|SamsungBrowser|OPR)\/(\d+)/.exec(ua); L.push((cv && +cv[1] >= 100 ? "OK  " : "    ") + "Version du navigateur : " + (cv ? cv[0] : "inconnue") + (cv && +cv[1] < 100 ? " → trop ancienne, mettez à jour Chrome dans le Play Store" : ""));
+      try { var cn = navigator.connection; if (cn && cn.saveData) L.push("NON Économiseur de données ACTIVÉ : il peut empêcher l'installation, désactivez-le"); } catch (e) {}
       out();
       if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(function (r) { L.push(ok(r && r.active) + "Service worker actif : " + (r && r.active ? r.active.state : "aucun") + (navigator.serviceWorker.controller ? " (contrôle cette page)" : " (ne contrôle pas encore cette page : rechargez)")); out(); });
       var mk = document.querySelector('link[rel=manifest]');
