@@ -1,0 +1,21 @@
+{
+  "id": "/formation.html",
+  "name": "Ma formation — MK-DESIGN GRAPH",
+  "short_name": "Ma formation",
+  "description": "Suivez vos 30 jours de formation : cours, exercices, notes et fiches de correction.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/formation.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f1f5fb",
+  "theme_color": "#0b6fcf",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
