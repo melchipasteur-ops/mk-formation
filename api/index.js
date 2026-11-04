@@ -181,7 +181,7 @@ const gradeOne = async (num, n, g, comment) => {
   const r = must(await db.from("formation_prog").select("sub,gt").eq("num", num).eq("day", n).maybeSingle()); if (!r || !r.sub) return null;
   const fin = r.gt == null ? g : Math.round((g * (1 - WT) + Number(r.gt) * WT) * 10) / 10;
   must(await db.from("formation_prog").update({ gp: g, grade: fin, comment: String(comment || "").slice(0, 600), gat: Date.now() }).eq("num", num).eq("day", n));
-  if (fin >= PASSM) { const all = must(await db.from("formation_prog").select("day,grade").eq("num", num)); if (all.filter(x => x.grade != null && Number(x.grade) >= PASSM).length >= 30) must(await db.from("students").update({ termine: true }).eq("num", num)); }
+  if (fin >= PASSM) { const all = must(await db.from("formation_prog").select("day,grade").eq("num", num)); if (all.filter(x => x.grade != null && Number(x.grade) >= PASSM).length >= 30) must(await db.from("students").update({ termine: true }).eq("num", num)); } else { const st0 = must(await db.from("students").select("termine").eq("num", num).maybeSingle()); if (st0 && st0.termine && !(await passed30(num))) must(await db.from("students").update({ termine: false }).eq("num", num)); }
   Object.keys(rankCache).forEach(k => delete rankCache[k]);
   return fin;
 };
@@ -665,14 +665,14 @@ const A = {
     const r = must(await db.from("formation_prog").select("*").eq("num", num).eq("day", n).maybeSingle()), s = must(await db.from("students").select("nom,prenoms").eq("num", num).maybeSingle());
     if (!x || !r || !r.sub) throw E("Remise introuvable.", 404);
     const dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, ex = (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i;
-    return { name: s && hasP(c, "students") ? s.nom + " " + s.prenoms : num, n, title: x.title, exercise: ex, data: dt, sub: Number(r.sub), att: r.att || 0, gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), grade: r.grade == null ? null : Number(r.grade), comment: r.comment || "",
+    return { name: s && hasP(c, "students") ? s.nom + " " + s.prenoms : num, n, title: x.title, exercise: ex, data: dt, sub: Number(r.sub), att: r.att || 0, gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), grade: r.grade == null ? null : Number(r.grade), comment: r.comment || "", gat: r.gat ? Number(r.gat) : 0,
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i] })) } : null };
   },
   async fGrade(d) {
     check(d.token, "a"); const n = Math.round(+d.day), num = String(d.num || "").slice(0, 30), g = Number(d.gp);
     if (!(g >= 0 && g <= 20)) throw E("Note invalide (0 à 20).");
-    const fin = await gradeOne(num, n, g, d.comment); if (fin == null) throw E("Aucune remise à noter.", 404);
-    return { ok: true, grade: fin };
+    const pv = must(await db.from("formation_prog").select("grade").eq("num", num).eq("day", n).maybeSingle()), fin = await gradeOne(num, n, g, d.comment); if (fin == null) throw E("Aucune remise à noter.", 404);
+    return { ok: true, grade: fin, prev: pv && pv.grade != null ? Number(pv.grade) : null };
   },
   async fGradeBulk(d) { // même note de travail pour plusieurs remises (sélection ou toutes les remises affichées)
     check(d.token, "a"); const g = Number(d.gp); if (!(g >= 0 && g <= 20)) throw E("Note invalide (0 à 20).");
