@@ -244,7 +244,7 @@ const mediaFor = async (n, num, preview) => {
 // ===================== REMISES : VIDÉOS DES ÉTUDIANTS ET BIBLIOTHÈQUE =====================
 // Les vidéos vont directement dans un bucket PRIVÉ (formation-subs) via une adresse d'envoi signée : elles ne passent pas par le serveur.
 // Les images des remises restent dans formation_prog.data.shots. Aucune adresse publique : uniquement des liens signés qui expirent.
-const VBUCKET = "formation-subs", VMAX = 50 * 1024 * 1024, VMAXN = 3;
+const VBUCKET = "formation-subs", VMAX = 15 * 1024 * 1024, VMAXN = 5;
 const VMIME = { "video/mp4": "mp4", "video/x-m4v": "mp4", "video/quicktime": "mov", "video/webm": "webm" }, VEXT = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
 const safeNum = n => String(n || "").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
 const vName = x => String(x.name || "video").replace(/[^\w.\- ()]/g, "_").slice(0, 80);
