@@ -99,6 +99,22 @@ a.btn{display:inline-block;text-decoration:none}
 .cd{display:flex;gap:8px;flex-wrap:wrap}.cd div{background:linear-gradient(135deg,#0a2a6b,#4f46e5);color:#fff;border-radius:14px;padding:8px 12px;text-align:center;min-width:66px;font-size:12px}.cd b{font-size:24px;display:block;line-height:1.1}
 .mwb{position:relative;overflow:hidden;border-radius:10px;background:#000;margin:6px 0 14px}.mwb video,.mwb img{display:block;width:100%;max-height:70vh;object-fit:contain;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.mwb img{pointer-events:none}.wm{position:absolute;pointer-events:none;color:rgba(255,255,255,.5);text-shadow:0 0 3px #000;font:700 13px sans-serif;top:8%;left:5%;animation:wmv 24s linear infinite}@keyframes wmv{0%{top:8%;left:5%}25%{top:8%;left:62%}50%{top:76%;left:62%}75%{top:76%;left:5%}100%{top:8%;left:5%}}
 .shg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:8px}.shi{position:relative}.shi img{width:100%;height:110px;object-fit:cover;border:1px solid var(--b);border-radius:8px;display:block}.shi button{position:absolute;top:4px;right:4px;min-height:28px;padding:2px 8px;background:#fff;color:#be123c;border-color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}.shbig img{max-width:100%;border:1px solid var(--b);border-radius:8px;margin:6px 0;display:block}
+
+.lb{position:fixed;inset:0;z-index:2000;background:rgba(2,6,23,.95);display:flex;flex-direction:column;color:#fff}
+.lb .bar{display:flex;gap:8px;align-items:center;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.lb .bar b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb .bar a,.lb .bar button{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:10px;padding:8px 12px;font-weight:700;text-decoration:none;min-height:40px;cursor:pointer;font-size:14px;box-shadow:none}
+.lb .st{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:6px;position:relative}
+.lb .st img,.lb .st video{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;background:#000}
+.lb .nv{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.2);border:none;color:#fff;font-size:28px;width:46px;height:64px;border-radius:12px;cursor:pointer;padding:0;box-shadow:none}
+.lb .nv.p{left:6px}.lb .nv.n{right:6px}
+.vtl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
+.vt{position:relative;background:#0f172a;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid var(--b)}
+.vt video{width:100%;height:100px;object-fit:cover;display:block;pointer-events:none;background:#0f172a}
+.vt .pl{position:absolute;left:0;right:0;top:0;height:100px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none}
+.vt small{display:block;padding:4px 8px;color:#e2e8f0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vt .x{position:absolute;top:4px;right:4px;min-height:28px;padding:2px 8px;background:#fff;color:#b91c1c;border:none;border-radius:8px;box-shadow:none}
+.shi img,.shbig img{cursor:zoom-in}
 </style><script id="mk-adm-switch">(function(){function f(){try{var a=(location.hash||"").indexOf("#/admin")===0||/admin/i.test(location.hostname),m=document.querySelector('link[rel="manifest"]'),i=document.querySelector('link[rel="apple-touch-icon"]'),t=document.querySelector('meta[name="apple-mobile-web-app-title"]');if(m)m.setAttribute("href",a?"/manifest-admin.webmanifest":"/manifest.webmanifest");if(i)i.setAttribute("href",a?"/icons/apple-touch-icon-admin.png":"/icons/apple-touch-icon.png");if(t)t.setAttribute("content",a?"MK Admin":"MK Design")}catch(e){}}f();addEventListener("hashchange",f)})()</script><script id="mk-remember">(function(){try{var st=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;if(!st)return;var K="mk_last_adm",h=location.hash||"",root=/^\/(index\.html)?$/.test(location.pathname),go=false;if(root&&(h===""||h==="#"||h==="#/")&&localStorage.getItem(K)==="1"){go=true;location.replace(location.pathname+location.search+"#/adminmelchi97")}function s(){try{localStorage.setItem(K,(location.hash||"").indexOf("#/admin")===0?"1":"0")}catch(e){}}if(!go)s();addEventListener("hashchange",s)}catch(e){}})()</script></head><body><div id="app"></div>
 <script>
 /* ============ AIDE-MÉMOIRE : parties d'un site et balises HTML ============ */
@@ -349,7 +365,7 @@ async function fiche(n){let F;try{F=await sapi("fFiche",{day:n})}catch(e){toast(
  <h3>Critères d'évaluation de l'exercice pratique</h3><ul>${F.crit.b.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>${F.crit.a?`<p><b>Résultat attendu :</b> ${esc(F.crit.a)}</p>`:""}
  <h3>Commentaire du correcteur</h3><p>${F.comment?esc(F.comment):"<i>Pas de commentaire.</i>"}</p>
  ${F.theory?`<h3>Correction des questions théoriques (${F.theory.s}/${F.theory.t})</h3>${F.theory.items.map((i,k)=>`<div class="qq"><b>${k+1}. ${esc(i.q)}</b><br>${i.ok?"✅":"❌"} Votre réponse : <i>${esc(i.a)}</i>${i.ok?"":`<br>Bonne réponse : <b>${esc(i.good)}</b>`}<br><small style="color:#475569">${esc(i.ex)}</small></div>`).join("")}`:""}
- <h3>Votre travail remis</h3>${F.data.answer?`<pre style="white-space:pre-wrap">${esc(F.data.answer)}</pre>`:""}${fl.map(([k,v])=>`<small>📄 ${esc(k)}</small><pre>${esc(v)}</pre>`).join("")}${shotsOf(F.data).map((s,i)=>`<img src="${s}" alt="Travail ${i+1}" style="max-width:100%;border:1px solid #cbd5e1;border-radius:10px;margin:4px 0;display:block">`).join("")}${sealHTML(F.gat||Date.now())}</div>`}
+ <h3>Votre travail remis</h3>${F.data.answer?`<pre style="white-space:pre-wrap">${esc(F.data.answer)}</pre>`:""}${fl.map(([k,v])=>`<small>📄 ${esc(k)}</small><pre>${esc(v)}</pre>`).join("")}${imgsHTML(shotsOf(F.data),"max-width:100%;border:1px solid #cbd5e1;border-radius:10px;margin:4px 0;display:block")}${F.vids&&F.vids.length?`<h3 class="np">🎥 Vidéos</h3><div class="np">${vidTiles(F.vids)}</div>`:""}${sealHTML(F.gat||Date.now())}</div>`}
 
 /* ===== Page d'un jour ===== */
 async function dayPage(n,tab){let D;try{D=await sapi("fDay",{day:n})}catch(e){app.innerHTML=`<div class="card"><h2>🔒 Jour ${n}</h2><p>${esc(e.message)}</p><p><button class="s" onclick="go('#/')">← Accueil</button></p></div>`;return}
@@ -395,7 +411,8 @@ function appTab(){const D=CUR.D,d=D.day,r=CUR.rec,lock=locked(),code=web(d.n)||p
  ${web(d.n)?`<p><button class="s" onclick="preview()">▶ Voir l'aperçu</button></p><iframe id="pv" sandbox="allow-scripts allow-forms allow-modals" title="Aperçu"></iframe><small>Les fichiers style.css et script.js sont pris en compte s'ils sont reliés dans index.html.</small>`:`<small>L'aperçu PHP n'est pas disponible ici : testez sur votre téléphone, puis joignez une image de votre résultat.</small>`}
  <div class="note" style="border-color:var(--ok)">✅ <b>Aucun hébergement nécessaire.</b> Votre code est votre remise : le correcteur voit directement votre site.</div>`}
  h+=`<label>${code?"Remarques pour le correcteur (facultatif)":"Lien de votre travail ou description"}</label><textarea id="ans" ${lock?"disabled":""} oninput="draft()" placeholder="${code?"Ce que vous avez fait, ce qui vous a bloqué…":"Collez un lien (Google Drive, YouTube « non répertorié »…) ou décrivez votre résultat"}">${esc(r.answer)}</textarea>
- <label>🖼️ Mes travaux à partager avec le formateur ${!code?"(possible à la place d'un lien)":php(d.n)?"(recommandé : le PHP ne s'affiche pas ici)":"(facultatif)"}</label><p class="m" style="margin:2px 0 6px">Ajoutez ici les images que vous avez créées (une ou plusieurs) pour que votre formateur puisse les voir et vous corriger. Maximum ${MAXSH} images.</p><input type="file" id="shot" accept="image/*" multiple ${lock?"disabled":""} onchange="pickShot(this)"><div id="shotv">${(r.shots||[]).length?shotHTML(lock):""}</div>
+ <label>🖼️ Mes travaux à partager avec le formateur ${!code?"(possible à la place d'un lien)":php(d.n)?"(recommandé : le PHP ne s'affiche pas ici)":"(facultatif)"}</label><p class="m" style="margin:2px 0 6px">Ajoutez ici les images que vous avez créées (une ou plusieurs) pour que votre formateur puisse les voir et vous corriger. Maximum ${MAXSH} images.</p><input type="file" id="shot" accept="image/*" multiple ${lock?"disabled":""} onchange="pickShot(this)"><div id="shotv">${(r.shots||[]).length?shotHTML(lock):(r.shots_purged?`<p class="m"><small>🧹 Vos anciennes images ont été supprimées par l'administration pour libérer de l'espace (votre note est conservée).</small></p>`:"")}</div>
+ <label>🎥 Mes vidéos (facultatif)</label><p class="m" style="margin:2px 0 6px">MP4, WebM ou MOV · ${MAXV} vidéos maximum · ${VMAXMB} Mo chacune. Filmez court (moins de 2 minutes) pour un envoi rapide. Touchez une vidéo pour la voir en grand.</p><input type="file" id="vid" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" multiple ${lock?"disabled":""} onchange="pickVid(this)"><div id="vidp" class="m"></div><div id="vidv">${vidHTML(lock)}</div>
  <p><button id="sb" class="g" ${lock?"disabled":""} onclick="submitDay()">${r.sub?"Remettre à nouveau":"Remettre mon travail"}</button></p><p id="err" style="color:var(--e);font-weight:600"></p></div>`;
  $("#body").innerHTML=h;prog();if(web(d.n)&&fsize())preview()}
 function draft(){const c=$("#code");if(c)files()[curFile]=c.value;if($("#ans"))CUR.rec.answer=$("#ans").value;persist()}
@@ -406,7 +423,7 @@ function delFile(b){if(!b.dataset.a){b.dataset.a=1;b.textContent="Cliquez à nou
 function toEditor(i){const t=$("#code");t.value+=(t.value?"\n\n":"")+CP[i];draft();preview();toast("Inséré dans l'éditeur")}
 function preview(){const f=$("#pv");if(!f)return;draft();f.srcdoc=site(files())}
 const MAXSH=8,shotsOf=d=>d&&d.shots&&d.shots.length?d.shots:(d&&d.shot?[d.shot]:[]);
-const shotHTML=lock=>{const a=CUR.rec.shots||[];return a.length?`<p class="m" style="margin:6px 0 0"><small>${a.length}/${MAXSH} image(s) prête(s) à partager</small></p><div class="shg">${a.map((s,i)=>`<div class="shi"><img src="${s}" alt="Travail ${i+1}">${lock?"":`<button class="s" onclick="rmShot(${i})" aria-label="Retirer cette image">✖</button>`}</div>`).join("")}</div>`:""};
+const shotHTML=lock=>{const a=CUR.rec.shots||[],sid=lbReg(a.map((s,i)=>({k:"img",src:s,dl:s,name:"image-"+(i+1)+".jpg"})));return a.length?`<p class="m" style="margin:6px 0 0"><small>${a.length}/${MAXSH} image(s) prête(s) à partager</small></p><div class="shg">${a.map((s,i)=>`<div class="shi"><img src="${s}" alt="Travail ${i+1}" onclick="lbOpen(${sid},${i})">${lock?"":`<button class="s" onclick="rmShot(${i})" aria-label="Retirer cette image">✖</button>`}</div>`).join("")}</div>`:""};
 const shrink=f=>new Promise(ok=>{const im=new Image(),u=URL.createObjectURL(f);im.onerror=()=>{URL.revokeObjectURL(u);ok(null)};im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL("image/jpeg",.7))};im.src=u});
 async function pickShot(inp){const fs=[...inp.files];inp.value="";if(!fs.length)return;const a=CUR.rec.shots=CUR.rec.shots||[],room=MAXSH-a.length;if(room<=0)return fail("Maximum "+MAXSH+" images. Retirez-en une pour en ajouter une autre.");
  const take=fs.slice(0,room),res=await Promise.all(take.map(shrink));let n=0,bad=0,big=0;
@@ -430,7 +447,7 @@ async function qcheck(){try{await flush();QR=await sapi("fCheck",{day:CUR.n,qa:C
 /* ----- remise (confirmation intégrée à la page) ----- */
 async function submitDay(){draft();const r=CUR.rec,d=CUR.D.day,b=$("#sb"),code=web(d.n)||php(d.n);$("#err").textContent="";
  if(code&&fsize()<20)return fail("Écrivez d'abord votre code (au moins quelques lignes) dans l'éditeur.");
- if(!code&&r.answer.trim().length<5&&!(r.shots||[]).length)return fail("Ajoutez un lien, une description ou au moins une image de votre travail.");
+ if(!code&&r.answer.trim().length<5&&!(r.shots||[]).length&&!((CUR.D&&CUR.D.vids)||[]).length)return fail("Ajoutez un lien, une description, une image ou une vidéo de votre travail.");
  if(CUR.D.quiz&&CUR.D.quiz.some((q,i)=>r.qa==null||r.qa[i]==null||r.qa[i]===""))return fail("Répondez d'abord à toutes les questions théoriques.");
  if(!armed){armed=1;const l=b.textContent;b.textContent="✔ Cliquez à nouveau pour confirmer la remise";setTimeout(()=>{armed=0;const x=$("#sb");if(x)x.textContent=l},6000);return}
  armed=0;b.disabled=true;try{await flush();await sapi("fSubmit",{day:CUR.n});toast("Travail remis ✔");dayPage(CUR.n,"app")}catch(e){b.disabled=false;fail(e.message)}}
@@ -440,11 +457,11 @@ const arm=(b,fn,t)=>{if(!b.dataset.a){b.dataset.a=1;b.dataset.t=b.textContent;b.
 async function admin(){if(!AT()){app.innerHTML=`<div class="hero"><img class="logo" src="${LOGO}" alt="MK-DESIGN GRAPH"><h1>🔐 Administration de la formation</h1></div><div class="card"><label>Identifiant administrateur</label><input id="au" autocapitalize="off" autocomplete="username" spellcheck="false"><label>Mot de passe</label><input id="pw" type="password" autocomplete="current-password"><div id="otpw"><label>Code à 6 chiffres <small>(double vérification)</small></label><input id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" onkeydown="if(event.key=='Enter')alogin()"></div><p><button onclick="alogin()">Entrer</button> <a href="/"><button class="s" type="button">Retour au site</button></a></p></div>`;fetch("/api").then(r=>r.json()).then(j=>{if(!j.tfa)$("#otpw").style.display="none"}).catch(()=>{});return}
  let S;try{S=await aapi("fAdmin")}catch(e){return toast(e.message)}
  window.COH=S.cohort;const ME=S.me,has=p=>ME.root||ME.perms.includes(p);window.HAS=has;
- const tabs=[["dash","📊 Tableau",has("f_ctl")||has("f_corr")],["note","📝 Notation"+(has("f_corr")&&S.subs.filter(x=>x.grade==null).length?" ("+S.subs.filter(x=>x.grade==null).length+")":""),has("f_corr")],["stu","👥 Étudiants",has("f_view")],["skip","⏩ Avancer",has("f_ctl")&&has("f_view")],["crs","📚 Cours et notes",has("f_courses")],["med","🎬 Médias",has("f_courses")],["gift","🎁 Accès offerts",has("f_gift")]].filter(x=>x[2]);
+ const tabs=[["dash","📊 Tableau",has("f_ctl")||has("f_corr")],["note","📝 Notation"+(has("f_corr")&&S.subs.filter(x=>x.grade==null).length?" ("+S.subs.filter(x=>x.grade==null).length+")":""),has("f_corr")],["stu","👥 Étudiants",has("f_view")],["skip","⏩ Avancer",has("f_ctl")&&has("f_view")],["lib","🗂️ Remises",has("f_corr")],["crs","📚 Cours et notes",has("f_courses")],["med","🎬 Médias",has("f_courses")],["gift","🎁 Accès offerts",has("f_gift")]].filter(x=>x[2]);
  if(!tabs.length){app.innerHTML=`<div class="card"><h2>Aucun droit pour la formation</h2><p>Demandez à l'administrateur principal de vous accorder un accès.</p><p><a href="/"><button class="s">Retour au site</button></a></p></div>`;return}
  if(!tabs.some(x=>x[0]==ATAB))ATAB=tabs[0][0];
  app.innerHTML=admBar()+`<div class="top"><h1>🎓 Formation</h1><small>Connecté : ${esc(ME.name)}</small></div>${(S.cohorts||[]).length>1?`<div class="card np"><label>📆 Promotion affichée</label><select onchange="COH=+this.value;admin()">${S.cohorts.map(c=>`<option value="${c.id}" ${c.id==S.cohort?"selected":""}>${esc(c.name)} · début ${fdl(c.start)} · ${c.n} étudiant(s)${c.registering?" · inscriptions ouvertes ici":""}</option>`).join("")}</select><small>Le lancement, l’ouverture des jours et les travaux ci-dessous concernent uniquement cette promotion.</small></div>`:""}<div class="tabs">${tabs.map(([k,l])=>`<button class="${ATAB==k?"on":""}" onclick="ATAB='${k}';admin()">${l}</button>`).join("")}</div><div id="ab"></div>`;
- AS=S;({dash:dashTab,note:noteTab,stu:stuTab,skip:skipTab,crs:crsTab,med:mediaTab,gift:giftTab})[ATAB](S)}
+ AS=S;({dash:dashTab,note:noteTab,stu:stuTab,skip:skipTab,lib:libTab,crs:crsTab,med:mediaTab,gift:giftTab})[ATAB](S)}
 
 /* ===== Vidéos et images des cours ===== */
 function mediaHTML(D){const M=D.media||[];if(!M.length)return"";const who=esc((typeof CR!=="undefined"&&CR&&CR.num)||"Aperçu");
@@ -552,6 +569,118 @@ async function skipCompose(nums,ask){nums=nums||[...SKS];if(!nums.length)return 
  const L=AS.students.filter(x=>nums.includes(x.num)&&x.skip&&x.skipMode!=="compose");if(!L.length)return toast("Aucun de ces étudiants n'est « avancé » : rien à changer");
  if(ask!==false&&!confirm("Demander à "+L.length+" étudiant(s) de composer ?\n\nIls gardent les jours avancés ouverts (ils peuvent tous les faire le même jour), mais ne pourront pas continuer au-delà tant que vous n'aurez pas corrigé et validé chacun de ces jours (14/20 minimum)."))return;
  try{const r=await aapi("fSkipSet",{nums:L.map(x=>x.num),compose:true,id:L.length+" étudiant(s) : doivent composer"});toast(r.n+" étudiant(s) doivent maintenant composer");SKS.clear();admin()}catch(e){alert(e.message)}}
+/* ===== Visionneuse : images et vidéos en grand, avec téléchargement ===== */
+window.LBS=[];window.LBI=null;
+const lbReg=items=>LBS.push(items)-1;
+function lbOpen(sid,i){if(!LBS[sid]||!LBS[sid][i])return;LBI={sid,i};lbPaint()}
+function lbPaint(){let e=$("#lb");if(!e){e=document.createElement("div");e.id="lb";e.className="lb";document.body.appendChild(e);document.body.style.overflow="hidden"}
+ const L=LBS[LBI.sid],it=L[LBI.i],multi=L.length>1;
+ e.innerHTML=`<div class="bar"><b>${esc(it.name||"")}${multi?` <small>(${LBI.i+1}/${L.length})</small>`:""}</b>${it.dl?`<a href="${it.dl}" download="${esc(it.name||"fichier")}" target="_blank" rel="noopener">⬇ Télécharger</a>`:""}<button onclick="lbClose()">✖ Fermer</button></div><div class="st" onclick="if(event.target===this)lbClose()">${it.k=="vid"?`<video src="${it.src}" controls autoplay playsinline></video>`:`<img src="${it.src}" alt="${esc(it.name||"")}">`}${multi?`<button class="nv p" onclick="lbGo(-1)" aria-label="Précédent">‹</button><button class="nv n" onclick="lbGo(1)" aria-label="Suivant">›</button>`:""}</div>`}
+function lbGo(d){const L=LBS[LBI.sid];LBI.i=(LBI.i+d+L.length)%L.length;lbPaint()}
+function lbClose(){const e=$("#lb");if(e)e.remove();document.body.style.overflow="";LBI=null}
+addEventListener("keydown",e=>{if(!LBI)return;if(e.key=="Escape")lbClose();else if(e.key=="ArrowRight")lbGo(1);else if(e.key=="ArrowLeft")lbGo(-1)});
+addEventListener("hashchange",()=>{if(LBI)lbClose()});
+const mo=b=>b>=1048576?(b/1048576).toFixed(b>=1.05e7?0:1)+" Mo":Math.max(1,Math.round(b/1024))+" Ko";
+function imgsHTML(arr,style){const sid=lbReg(arr.map((s,i)=>({k:"img",src:s,dl:s,name:"image-"+(i+1)+".jpg"})));return arr.map((s,i)=>`<img src="${s}" alt="Travail ${i+1}" ${style?`style="${style}"`:""} onclick="lbOpen(${sid},${i})">`).join("")}
+function vidTiles(list,opt){opt=opt||{};const sid=lbReg(list.map(v=>({k:"vid",src:v.url,dl:v.dl,name:v.name})));
+ return `<div class="vtl">${list.map((v,i)=>`<div class="vt" onclick="lbOpen(${sid},${i})"><video src="${v.url}#t=0.6" preload="metadata" muted playsinline></video><span class="pl">▶</span><small>${esc(v.name)} · ${mo(v.size)}</small>${opt.rm?`<button class="x" onclick="event.stopPropagation();rmVid('${esc(v.id)}')" aria-label="Retirer cette vidéo">✖</button>`:""}</div>`).join("")}</div>`}
+
+/* ===== Étudiant : envoi de vidéos (directement vers le stockage privé) ===== */
+const MAXV=3,VMAXMB=50;
+function vidHTML(lock){const a=(CUR.D&&CUR.D.vids)||[],pu=(CUR.D&&CUR.D.vidsPurged)||0;
+ return (a.length?`<p class="m" style="margin:6px 0 0"><small>${a.length}/${MAXV} vidéo(s) envoyée(s)</small></p>`+vidTiles(a,{rm:!lock}):"")+(pu&&!a.length?`<p class="m"><small>🧹 Vos anciennes vidéos ont été supprimées par l'administration pour libérer de l'espace (votre note est conservée).</small></p>`:"")}
+async function pickVid(inp){const fs=[...inp.files];inp.value="";if(!fs.length)return;if(locked())return fail("Ce travail est verrouillé.");
+ const D=CUR.D;D.vids=D.vids||[];const pr=$("#vidp");let ok=0;const bad=[];
+ for(const f of fs){if(D.vids.length>=MAXV){bad.push("maximum "+MAXV+" vidéos par jour");break}
+  if(f.size>VMAXMB*1048576){bad.push(f.name+" : plus de "+VMAXMB+" Mo (filmez plus court ou réduisez la qualité)");continue}
+  const pre=f.name+" — ";let r=null;
+  try{pr.textContent=pre+"préparation…";r=await sapi("fVidInit",{day:CUR.n,name:f.name,mime:f.type,size:f.size});
+   await new Promise((res,ko)=>{const x=new XMLHttpRequest();x.open("PUT",r.url);x.upload.onprogress=e=>{if(e.lengthComputable)pr.textContent=pre+"envoi "+Math.round(e.loaded/e.total*100)+" %"};x.onload=()=>x.status<300?res():ko(new Error("refusé par le stockage ("+x.status+")"));x.onerror=()=>ko(new Error("envoi interrompu : vérifiez votre connexion"));const fd=new FormData();fd.append("cacheControl","3600");fd.append("",f);x.send(fd)});
+   pr.textContent=pre+"vérification…";const d=await sapi("fVidDone",{id:r.id});if(d.vid)D.vids.push(d.vid);ok++;$("#vidv").innerHTML=vidHTML(false)}
+  catch(e){bad.push(f.name+" : "+e.message);if(r){try{await sapi("fVidDel",{id:r.id})}catch(_){}}}}
+ pr.textContent="";$("#vidv").innerHTML=vidHTML(false);toast(bad.length?(ok?ok+" envoyée(s) · ":"")+bad.join(" ; "):ok+" vidéo(s) envoyée(s) ✔")}
+async function rmVid(id){if(locked())return;if(!confirm("Retirer cette vidéo ?"))return;try{await sapi("fVidDel",{id});CUR.D.vids=(CUR.D.vids||[]).filter(v=>v.id!==id);$("#vidv").innerHTML=vidHTML(false)}catch(e){toast(e.message)}}
+
+/* ===== Enregistrement : fichier ZIP (sans compression : images et vidéos le sont déjà) ===== */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=u8=>{let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC[(c^u8[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+async function makeZip(entries){const enc=new TextEncoder(),parts=[],cd=[];let off=0,cds=0;const now=new Date(),tm=(now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1),dt=((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+ for(const e of entries){const nm=enc.encode(e.p),u8=new Uint8Array(await e.b.arrayBuffer()),crc=crc32(u8),sz=u8.length;
+  const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);h.setUint16(10,tm,true);h.setUint16(12,dt,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
+  parts.push(h.buffer,nm,e.b);
+  const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);c.setUint16(12,tm,true);c.setUint16(14,dt,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,nm.length,true);c.setUint16(30,0,true);c.setUint16(32,0,true);c.setUint16(34,0,true);c.setUint16(36,0,true);c.setUint32(38,0,true);c.setUint32(42,off,true);
+  cd.push(c.buffer,nm);off+=30+nm.length+sz;cds+=46+nm.length}
+ if(entries.length>65000||off>3.9e9)throw new Error("Trop volumineux pour un seul ZIP : utilisez « Enregistrer dans un dossier ».");
+ const end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,entries.length,true);end.setUint16(10,entries.length,true);end.setUint32(12,cds,true);end.setUint32(16,off,true);
+ return new Blob([...parts,...cd,end.buffer],{type:"application/zip"})}
+function saveBlob(b,name){const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
+
+/* ===== Bibliothèque des remises : tout ce que les étudiants ont envoyé ===== */
+window.LIB=null;window.LBF={q:"",day:0,vid:false};window.LIBX={stop:false};window.PG=null;
+const pad2=n=>String(n).padStart(2,"0"),safeN=s=>String(s||"").replace(/[\\\/:*?"<>|\u0000-\u001f]/g,"_").replace(/\s+/g," ").trim().slice(0,80)||"sans-nom";
+const libP=m=>{const e=$("#lib-prog");if(e)e.innerHTML=m?`<div class="note">${m} <button class="s" onclick="LIBX.stop=true">Arrêter</button></div>`:""};
+function dataBlob(u){const m=/^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(u||"");if(!m)return null;const bin=atob(m[3]),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:m[1]||"application/octet-stream"})}
+const extOf=u=>{const m=/^data:image\/(\w+)/.exec(u||"");return!m||m[1]=="jpeg"?"jpg":m[1]};
+async function dayFiles(num,c){const X=await aapi("fLibGet",{num,day:c.day}),o=[],st=X.sub?(X.grade!=null?"Corrigé : "+X.grade+"/20 ("+(X.grade>=PM?"validé":"à refaire")+")":"Remis, en attente de correction"):"Brouillon (non remis)";
+ o.push({p:"fiche.txt",b:new Blob(["Étudiant : "+X.name+" ("+X.num+")\r\nJour "+X.day+" : "+X.title+"\r\nStatut : "+st+"\r\n"+(X.sub?"Remis le : "+new Date(X.sub).toLocaleString("fr-FR")+" (tentative n°"+X.att+")\r\n":"")+(X.gp!=null?"Note pratique : "+X.gp+"/20\r\n":"")+(X.gt!=null?"Note théorie : "+X.gt+"/20\r\n":"")+(X.comment?"\r\nCommentaire du correcteur :\r\n"+X.comment+"\r\n":"")+(X.imgPurged?"\r\n("+X.imgPurged+" image(s) supprimée(s) pour libérer de l'espace)\r\n":"")+(X.vidsPurged?"\r\n("+X.vidsPurged+" vidéo(s) supprimée(s) pour libérer de l'espace)\r\n":"")],{type:"text/plain"})});
+ if(X.data.answer)o.push({p:"reponse.txt",b:new Blob([X.data.answer],{type:"text/plain"})});
+ Object.entries(X.data.files||{}).forEach(([k,v])=>o.push({p:"code/"+safeN(k),b:new Blob([v],{type:"text/plain"})}));
+ (X.data.shots||[]).forEach((s,i)=>{const b=dataBlob(s);if(b)o.push({p:"images/image-"+(i+1)+"."+extOf(s),b})});
+ (X.vids||[]).forEach((v,i)=>o.push({p:"videos/"+(i+1)+"-"+safeN(v.name),url:v.dl}));
+ return o}
+async function libTab(S){const ab=$("#ab");ab.innerHTML=`<div class="card"><p>Chargement de la bibliothèque…</p></div>`;let X;try{X=await aapi("fLib")}catch(e){ab.innerHTML=`<div class="card"><div class="note bad">${esc(e.message)}</div></div>`;return}LIB=X;libPaint()}
+function libFiltered(){const f=LBF,q=f.q.trim().toLowerCase();return(LIB?LIB.list:[]).map(s=>({...s,days:s.days.filter(c=>(!f.day||c.day==f.day)&&(!f.vid||c.vid>0))})).filter(s=>s.days.length&&(!q||(s.name+" "+s.num).toLowerCase().includes(q)))}
+const stBadge=c=>!c.sub?`<span class="tag">✏️ brouillon</span>`:c.grade==null?`<span class="tag pend">⏳ en correction</span>`:c.grade>=PM?`<span class="tag ok">✅ ${c.grade}/20</span>`:`<span class="tag bad">🔁 ${c.grade}/20</span>`;
+function libList(){const L=libFiltered();$("#lib-n").textContent=L.length;$("#lib-l").innerHTML=L.map(s=>{const a=s.days.reduce((t,c)=>({img:t.img+c.img,vid:t.vid+c.vid,vb:t.vb+c.vidB}),{img:0,vid:0,vb:0});
+ return `<details class="card" style="padding:10px 14px"><summary style="cursor:pointer"><b>${esc(s.name)}</b> <small>${esc(s.num)}</small> · 📷 ${a.img} · 🎞️ ${a.vid}${a.vb?` (${mo(a.vb)})`:""} <button class="s" style="padding:2px 10px;min-height:32px;float:right" onclick="event.preventDefault();event.stopPropagation();libZip('${esc(s.num)}')">📦 ZIP</button></summary><div class="tw"><table><tr><th>Jour</th><th>Statut</th><th>📷</th><th>🎞️</th><th>📄</th><th></th></tr>${s.days.map(c=>`<tr><td>J${c.day}<br><small>${esc(c.title.replace(/^(GRAND )?PROJET[^—]*— /,""))}</small></td><td>${stBadge(c)}</td><td>${c.img}${c.imgP?` <small>(🧹${c.imgP})</small>`:""}</td><td>${c.vid}${c.vid?` <small>${mo(c.vidB)}</small>`:""}${c.vidP?` <small>(🧹${c.vidP})</small>`:""}</td><td>${c.files?c.files+" fichier(s)":c.ans?"📝":"—"}</td><td>${c.sub?`<button class="s" style="padding:2px 8px;min-height:30px;font-size:12px" onclick="gradeView('${esc(s.num)}',${c.day})">👁 Ouvrir</button>`:""}</td></tr>`).join("")}</table></div></details>`}).join("")||`<div class="note">Aucune remise ne correspond.</div>`}
+function libPaint(){const X=LIB,t=X.tot,root=AS&&AS.me&&AS.me.root,fs=!!window.showDirectoryPicker;
+ $("#ab").innerHTML=`<div class="card"><h2>🗂️ Bibliothèque des remises</h2><div class="note">Tout ce que les étudiants de la promotion affichée ont envoyé : réponses, codes, <b>images</b> et <b>vidéos</b>. Dans « 👁 Ouvrir », touchez une image ou une vidéo pour la voir en grand et la télécharger.</div>
+ <p><b>${t.students}</b> étudiant(s) · 📷 <b>${t.img}</b> image(s) (≈ ${mo(t.imgB)} dans la base) · 🎞️ <b>${t.vid}</b> vidéo(s) (${mo(t.vidB)} de stockage)${t.imgP||t.vidP?` · 🧹 déjà supprimées : ${t.imgP} image(s), ${t.vidP} vidéo(s)`:""}</p>
+ <input placeholder="🔎 Nom ou numéro" value="${esc(LBF.q)}" oninput="LBF.q=this.value;libList()">
+ <div style="display:flex;gap:10px;align-items:end"><div style="flex:1"><label>Jour</label><select onchange="LBF.day=+this.value;libList()"><option value="0">Tous les jours</option>${mDays(LBF.day)}</select></div><label style="flex:1;display:flex;gap:8px;align-items:center;margin:0 0 10px"><input type="checkbox" style="width:auto" ${LBF.vid?"checked":""} onchange="LBF.vid=this.checked;libList()"> Avec vidéos seulement</label></div>
+ <h3>📥 Enregistrer sur votre ordinateur</h3>
+ <p class="m">Crée un dossier <b>MK-Remises</b> : un sous-dossier par étudiant, puis un par jour, avec la fiche de note, la réponse, le code, les images et les vidéos. S'applique aux <b id="lib-n">0</b> étudiant(s) de la liste ci-dessous (utilisez les filtres pour choisir).</p>
+ <p><button class="g" onclick="libFolder()">${fs?"📁 Enregistrer dans un dossier":"📦 Télécharger (un ZIP par étudiant)"}</button></p>
+ ${fs?"":`<p class="m"><small>Votre navigateur ne peut pas écrire directement dans un dossier. Utilisez Chrome ou Edge sur ordinateur pour tout enregistrer d'un coup. Ici, un fichier ZIP sera téléchargé pour chaque étudiant.</small></p>`}
+ <div id="lib-prog"></div></div><div id="lib-l"></div>
+ ${root?`<div class="card"><h2>🧹 Libérer de l'espace (Supabase)</h2><div class="note warn">Supprime <b>uniquement les vidéos et/ou les images</b> envoyées par les étudiants. <b>Ne touche jamais</b> aux notes, commentaires, bulletins, attestations, réponses écrites, codes ni questions théoriques. <b>Irréversible</b> : enregistrez d'abord la base dans un dossier (bouton ci-dessus). L'espace affiché par Supabase peut mettre quelques minutes à baisser.</div>
+ <label>Que supprimer ?</label><select id="pg-k"><option value="videos">Les vidéos (libère le stockage)</option><option value="images">Les images (libère de la place dans la base)</option><option value="both">Les vidéos et les images</option></select>
+ <label>Pour qui ?</label><select id="pg-s" onchange="$('#pg-num').style.display=this.value=='num'?'':'none'"><option value="all">Toute la base (toutes les promotions)</option><option value="coh">La promotion affichée seulement</option><option value="num">Un étudiant précis</option></select>
+ <div id="pg-num" style="display:none"><label>Numéro de l'étudiant</label><input id="pg-n" autocapitalize="characters" autocomplete="off"></div>
+ <label>Quel jour ?</label><select id="pg-d"><option value="">Tous les jours</option>${mDays(0)}</select>
+ <label>Remis avant le (facultatif)</label><input id="pg-b" type="date">
+ <p><button class="s" onclick="pgEst()">📊 Estimer l'espace libéré</button></p><div id="pg-r"></div></div>`:""}`;libList()}
+async function fsDir(h,name){return h.getDirectoryHandle(safeN(name),{create:true})}
+async function fsWrite(dir,rel,item){const parts=rel.split("/");let d=dir;for(const p of parts.slice(0,-1))d=await fsDir(d,p);const fh=await d.getFileHandle(parts[parts.length-1],{create:true}),w=await fh.createWritable();
+ if(item.url){const r=await fetch(item.url);if(!r.ok||!r.body){await w.abort();throw new Error("téléchargement refusé ("+r.status+")")}await r.body.pipeTo(w)}else{await w.write(item.b);await w.close()}}
+async function libZip(num){const s=LIB.list.find(x=>x.num==num);if(!s)return;const vb=s.days.reduce((t,c)=>t+c.vidB,0);
+ if(vb>8e8&&!confirm("Les vidéos de cet étudiant pèsent "+mo(vb)+". Un ZIP de cette taille peut échouer sur certains appareils : préférez « Enregistrer dans un dossier » sur ordinateur. Continuer ?"))return;
+ LIBX.stop=false;const ent=[],errs=[];
+ try{let k=0;for(const c of s.days){if(LIBX.stop)break;k++;libP("📦 "+esc(s.name)+" : jour "+c.day+" ("+k+"/"+s.days.length+")…");
+   for(const f of await dayFiles(s.num,c)){let b=f.b;if(f.url){try{const r=await fetch(f.url);if(!r.ok)throw new Error("refusé ("+r.status+")");b=await r.blob()}catch(e){errs.push("Jour "+c.day+" : "+f.p+" ("+e.message+")");continue}}ent.push({p:"Jour "+pad2(c.day)+" - "+safeN(c.title)+"/"+f.p,b})}}
+  if(LIBX.stop){libP("");return toast("Arrêté")}
+  if(errs.length)ent.push({p:"erreurs.txt",b:new Blob([errs.join("\r\n")],{type:"text/plain"})});
+  libP("📦 Création du fichier ZIP…");saveBlob(await makeZip(ent),safeN(s.name+" ("+s.num+")")+".zip");toast("ZIP enregistré ✔"+(errs.length?" · "+errs.length+" fichier(s) en échec (voir erreurs.txt)":""))}
+ catch(e){alert(e.message)}libP("")}
+async function libFolder(){const L=libFiltered();if(!L.length)return toast("Rien à enregistrer");
+ if(!window.showDirectoryPicker){LIBX.stop=false;for(const s of L){if(LIBX.stop)break;await libZip(s.num)}return}
+ let root;try{root=await showDirectoryPicker({mode:"readwrite"})}catch(e){return}
+ LIBX.stop=false;const tot=L.reduce((t,s)=>t+s.days.length,0),errs=[];let k=0,nf=0;
+ try{const top=await fsDir(root,"MK-Remises "+new Date().toISOString().slice(0,10));
+  for(const s of L){if(LIBX.stop)break;const sd=await fsDir(top,s.name+" ("+s.num+")");
+   for(const c of s.days){if(LIBX.stop)break;k++;libP("📁 "+k+"/"+tot+" · "+esc(s.name)+" · jour "+c.day+"…");
+    try{const files=await dayFiles(s.num,c),dd=await fsDir(sd,"Jour "+pad2(c.day)+" - "+c.title);
+     for(const f of files){try{await fsWrite(dd,f.p,f);nf++}catch(e){errs.push(s.name+" · jour "+c.day+" · "+f.p+" : "+e.message)}}}
+    catch(e){errs.push(s.name+" · jour "+c.day+" : "+e.message)}}}
+  if(errs.length)await fsWrite(top,"erreurs.txt",{b:new Blob([errs.join("\r\n")],{type:"text/plain"})});
+  toast(LIBX.stop?"Arrêté : "+nf+" fichier(s) déjà enregistrés":"✔ "+nf+" fichier(s) enregistrés"+(errs.length?" · "+errs.length+" échec(s) (voir erreurs.txt)":""))}
+ catch(e){alert("Enregistrement interrompu : "+e.message)}libP("")}
+function pgParams(){const p={kind:$("#pg-k").value},sc=$("#pg-s").value;if(sc=="coh")p.cohort_only=true;if(sc=="num"){const n=$("#pg-n").value.trim().toUpperCase();if(!n){toast("Saisissez le numéro de l'étudiant");return null}p.num=n}const d=$("#pg-d").value;if(d)p.day=+d;const b=$("#pg-b").value;if(b)p.before=b;return p}
+async function pgEst(){const p=pgParams();if(!p)return;PG=p;let r;try{r=await aapi("fPurge",Object.assign({},p,{run:false}))}catch(e){return alert(e.message)}
+ const v=r.videos,i=r.images;
+ $("#pg-r").innerHTML=!v.n&&!i.n?`<div class="note">Rien à supprimer avec ces critères.</div>`:`<div class="note warn">Seraient supprimés :<br>${p.kind!="images"?`🎞️ <b>${v.n}</b> vidéo(s) · <b>${mo(v.bytes)}</b> libérés dans le stockage<br>`:""}${p.kind!="videos"?`📷 <b>${i.n}</b> image(s) dans <b>${i.rows}</b> remise(s) · environ <b>${mo(i.bytes)}</b> libérés dans la base<br>`:""}<br>Notes, commentaires, bulletins, attestations, réponses et codes restent <b>intacts</b>.</div><label>Pour confirmer, tapez <b>VIDER</b></label><input id="pg-c" autocomplete="off" placeholder="VIDER"><p><button class="r" onclick="pgRun()">🗑️ Supprimer définitivement</button></p>`}
+async function pgRun(){if(!PG)return;if($("#pg-c").value.trim()!=="VIDER")return toast("Tapez VIDER en majuscules pour confirmer");
+ try{const r=await aapi("fPurge",Object.assign({},PG,{run:true,confirm:"VIDER"}));PG=null;toast("✔ "+r.videos.n+" vidéo(s) et "+r.images.n+" image(s) supprimée(s)");libTab(AS)}catch(e){alert(e.message)}}
 async function crsTab(){let X;try{X=await aapi("fCourses")}catch(e){return}
  $("#ab").innerHTML=`<div class="card"><h2>📚 Tous les cours, avec notes pour professeur</h2><p class="m">Pour chaque jour : cours complet, barème de correction, pièges fréquents, réponses aux questions et un espace pour vos propres notes.</p></div>`+["Semaine 1","Semaine 2","Semaine 3","Semaine 4"].map(w=>`<div class="wk" style="--wk:${WK[w]}"><i></i>${w}<small>${WN[w]}</small></div><div class="grid">${X.days.filter(d=>d.week===w).map(d=>`<button class="day" style="--wk:${WK[w]}" onclick="courseView(${d.n})"><b>Jour ${d.n}${d.proj?" · Projet":""}</b><span>${esc(d.title.replace(/^(GRAND )?PROJET[^—]*— /,""))}</span>${d.note?'<span class="tag open">📝 vos notes</span>':""}</button>`).join("")}</div>`).join("")}
 async function courseView(n){let X;try{X=await aapi("fCourse",{day:n})}catch(e){return toast(e.message)}
@@ -591,7 +720,7 @@ async function bulkGrade(mode){const g=parseFloat($("#bg-n").value);if(isNaN(g)|
 async function gradeView(num,day){let X;try{X=await aapi("fSub",{num,day})}catch(e){return toast(e.message)}const r=X,dt=X.data||{},F=dt.files||{};window.GT=X.gt;window.GPREV=X.grade;
  app.innerHTML=admBar("admin()")+`<div class="card"><h2>${esc(X.name)} — Jour ${X.n} : ${esc(X.title)}</h2><small>Remis le ${fd(X.sub)} · tentative n°${X.att}</small>
  <h3>Exercice demandé</h3><ul>${X.exercise.map(i=>`<li>${esc(i)}</li>`).join("")}</ul><h3>Réponse de l'étudiant</h3><pre style="white-space:pre-wrap">${esc(dt.answer||"(vide)")}</pre>
- ${Object.entries(F).map(([k,v])=>`<h3>📄 ${esc(k)}</h3><pre>${esc(v)}</pre>`).join("")}${web(X.n)&&Object.keys(F).length?`<h3>Aperçu du site</h3><iframe sandbox="allow-scripts allow-forms allow-modals" srcdoc="${esc(site(F))}"></iframe>`:""}${shotsOf(dt).length?`<h3>Travaux partagés par l'étudiant (${shotsOf(dt).length} image${shotsOf(dt).length>1?"s":""})</h3><div class="shbig">${shotsOf(dt).map((s,i)=>`<img src="${s}" alt="Travail ${i+1}">`).join("")}</div>`:""}</div>
+ ${Object.entries(F).map(([k,v])=>`<h3>📄 ${esc(k)}</h3><pre>${esc(v)}</pre>`).join("")}${web(X.n)&&Object.keys(F).length?`<h3>Aperçu du site</h3><iframe sandbox="allow-scripts allow-forms allow-modals" srcdoc="${esc(site(F))}"></iframe>`:""}${shotsOf(dt).length?`<h3>Travaux partagés par l'étudiant (${shotsOf(dt).length} image${shotsOf(dt).length>1?"s":""})</h3><p class="m"><small>Touchez une image pour l'agrandir et la télécharger.</small></p><div class="shbig">${imgsHTML(shotsOf(dt))}</div>`:""}${X.vids&&X.vids.length?`<h3>🎥 Vidéos de l'étudiant (${X.vids.length})</h3><p class="m"><small>Touchez une vidéo pour la lire en grand et la télécharger.</small></p>${vidTiles(X.vids)}`:""}${X.vidsPurged?`<p class="m"><small>🧹 ${X.vidsPurged} vidéo(s) supprimée(s) pour libérer de l'espace.</small></p>`:""}</div>
  ${X.theory?`<div class="card"><h2>🧠 Théorie : corrigée automatiquement</h2><p><b>${X.theory.s}/${X.theory.t} bonnes réponses → ${X.theory.v}/20</b> (compte pour ${WT*100}% de la note finale)</p><ul>${X.theory.items.map(i=>`<li>${i.ok?"✅":"❌"} ${esc(i.q)}<br><small>Réponse : <i>${esc(i.a)}</i></small></li>`).join("")}</ul></div>`:""}
  <div class="card"><h2>${X.grade!=null?"✏️ Modifier la note":"Notation"}</h2>${X.grade!=null?`<div class="note"><b>Note actuelle : ${X.grade}/20</b> — ${X.grade>=PM?"✅ validé":"🔁 à refaire"}${X.gat?" · notée le "+fd(X.gat):""}<br><small>Vous pouvez modifier cette note à tout moment : le bulletin et les classements de l'étudiant sont mis à jour aussitôt.</small></div>`:""}<label>Note de l'exercice pratique /20</label><input id="gr" type="number" min="0" max="20" step="0.5" value="${X.gp??(X.theory?"":X.grade??"")}" oninput="fin()"><p id="fn" class="m">${X.theory?`Note finale = pratique × ${100-WT*100}% + théorie (${X.theory.v}/20) × ${WT*100}%. Minimum ${PM}.`:`Pas de théorie ce jour-là : la note pratique est la note finale (minimum ${PM}).`}</p>
  <label>Commentaire pour l'étudiant</label><textarea id="gc">${esc(X.comment||"")}</textarea><p><button class="g" onclick="saveGrade('${esc(num)}',${day})">${X.grade!=null?"Enregistrer la modification":"Enregistrer la note"}</button></p></div>`}
