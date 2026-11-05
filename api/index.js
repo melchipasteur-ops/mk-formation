@@ -241,13 +241,32 @@ const mediaFor = async (n, num, preview) => {
   } catch (e) { return []; }
 };
 
+// ===================== REMISES : VIDÉOS DES ÉTUDIANTS ET BIBLIOTHÈQUE =====================
+// Les vidéos vont directement dans un bucket PRIVÉ (formation-subs) via une adresse d'envoi signée : elles ne passent pas par le serveur.
+// Les images des remises restent dans formation_prog.data.shots. Aucune adresse publique : uniquement des liens signés qui expirent.
+const VBUCKET = "formation-subs", VMAX = 50 * 1024 * 1024, VMAXN = 3;
+const VMIME = { "video/mp4": "mp4", "video/x-m4v": "mp4", "video/quicktime": "mov", "video/webm": "webm" }, VEXT = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
+const safeNum = n => String(n || "").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
+const vName = x => String(x.name || "video").replace(/[^\w.\- ()]/g, "_").slice(0, 80);
+const vidOut = (x, u) => ({ id: x.id, day: Number(x.day), name: x.name || "video", size: Number(x.size || 0), at: Number(x.at || 0), url: u || "", dl: u ? u + (u.includes("?") ? "&" : "?") + "download=" + encodeURIComponent(vName(x)) : "" });
+// Vidéos d'un étudiant (un jour précis ou tous) avec liens signés. Ne bloque jamais : si la table n'existe pas encore, renvoie une liste vide.
+const vidsFor = async (num, day) => {
+  try {
+    let q = db.from("formation_vid").select("*").eq("num", String(num || "")).eq("ready", true); if (day != null) q = q.eq("day", day);
+    const r = await q.order("at", { ascending: true }); if (r.error) return { list: [], purged: 0 };
+    const rows = r.data || [], live = rows.filter(x => !x.purged_at && x.path), u = {};
+    if (live.length) { const g = await db.storage.from(VBUCKET).createSignedUrls(live.map(x => x.path), MTTL); (g.data || []).forEach(x => { if (x && x.signedUrl && x.path) u[x.path] = x.signedUrl; }); }
+    return { list: live.filter(x => u[x.path]).map(x => vidOut(x, u[x.path])), purged: rows.length - live.length };
+  } catch (e) { return { list: [], purged: 0 }; }
+};
+
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
 const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
-  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fSkipSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
+  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fSkipSet: "f_ctl", fLib: "f_corr", fLibGet: "f_corr", fPurge: ROOTONLY, fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
-const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
+const READONLY = new Set(["fAccessList", "fLib", "fLibGet", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
 async function adminCtx(token) {
   let t; try { t = check(token, "a"); } catch (e) { return null; }
   if (!t.u || t.u === "root") return { root: true, id: "root", name: "Administrateur principal", pm: Object.keys(PERMS) };
@@ -395,7 +414,7 @@ const A = {
   async adminDel(d, c) { needRoot(d, c); must(await db.from("admins").delete().eq("id", String(d.id))); return { ok: true }; },
   async audit(d, c) { needRoot(d, c); return { list: must(await db.from("admin_audit").select("*").order("at", { ascending: false }).limit(300)).map(x => ({ ...x, at: Number(x.at) })) }; },
   async backup(d, c) {
-    needRoot(d, c); const T = ["students", "payments", "partners", "payouts", "dreq", "log", "settings", "formation_cfg", "formation_prog", "formation_free", "formation_access", "formation_skip", "formation_notes", "admins", "admin_audit"], out = { date: Date.now(), tables: {}, note: "Les photos, captures et mots de passe ne sont pas inclus." };
+    needRoot(d, c); const T = ["students", "payments", "partners", "payouts", "dreq", "log", "settings", "formation_cfg", "formation_prog", "formation_free", "formation_access", "formation_skip", "formation_vid", "formation_notes", "admins", "admin_audit"], out = { date: Date.now(), tables: {}, note: "Les photos, captures et mots de passe ne sont pas inclus." };
     for (const t of T) { try { out.tables[t] = must(await db.from(t).select("*")).map(r => { const o = { ...r }; ["photo", "shot", "pin", "pin_hash", "pass_hash"].forEach(k => delete o[k]); if (o.data && o.data.shot) o.data = { ...o.data, shot: "(image non incluse)" }; if (o.data && o.data.shots) o.data = { ...o.data, shots: "(images non incluses)" }; return o; }); } catch (e) { out.tables[t] = "(table absente)"; } }
     return out;
   },
@@ -580,7 +599,7 @@ const A = {
     const p = s.partner ? await getPartner(s.partner) : null, label = s.nom + " " + s.prenoms, r = must(await db.from("dreq").select("*").eq("num", s.num).maybeSingle());
     // L'étudiant quitte immédiatement la liste des inscrits (chez vous comme chez le partenaire), que le partenaire ait accepté ou non.
     const acc = !p ? "inscription directe" : r && r.st === "ok" ? "accord du partenaire obtenu" : r && r.st === "attente" ? "demande au partenaire restée sans réponse" : r && r.st === "non" ? "refus du partenaire" : "accord du partenaire non demandé";
-    must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); await db.from("formation_skip").delete().eq("num", s.num); must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
+    must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); await db.from("formation_skip").delete().eq("num", s.num); try { const vr = await db.from("formation_vid").select("path,purged_at").eq("num", s.num), ps = (vr.data || []).filter(x => !x.purged_at).map(x => x.path); for (let i = 0; i < ps.length; i += 100) await db.storage.from(VBUCKET).remove(ps.slice(i, i + 100)); await db.from("formation_vid").delete().eq("num", s.num); } catch (e) { /* ignoré */ } must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
     must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: label, statut: s.status, partner: p ? p.name : "Direct", how: "Supprimé immédiatement par l'administrateur (" + acc + ")" }));
     return { ok: true };
   },
@@ -598,7 +617,7 @@ const A = {
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; return { rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], purged: 0 } : await vidsFor(s.num, n); return { vids: V.list, vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
   },
   // ---------- Formation : vidéos et images des cours (administrateur, droit « cours et notes ») ----------
   async fMediaList(d) {
@@ -634,6 +653,74 @@ const A = {
     check(d.token, "a"); const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_media").select("path").eq("id", id).maybeSingle()); if (!x) throw E("Média introuvable.", 404);
     await db.storage.from(MBUCKET).remove([x.path]); must(await db.from("formation_media").delete().eq("id", id)); return { ok: true };
   },
+  // ---------- Remises : vidéos envoyées par l'étudiant (envoi direct vers le stockage privé) ----------
+  async fVidInit(d, c) { // étape 1 : contrôle les droits et les limites, réserve l'emplacement, donne l'adresse d'envoi signée
+    const { s, fx, pm, ro } = await fctx(d, c, "fvi", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
+    const n = needDay(d, fx, pm), p = pm[n]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
+    const pr = await db.from("formation_vid").select("id").limit(1); if (pr.error) throw E("L'envoi de vidéos n'est pas encore activé. Prévenez votre formateur.", 503);
+    const nm = String(d.name || "").slice(0, 120), ext = (nm.split(".").pop() || "").toLowerCase(); let mt = String(d.mime || "").toLowerCase(); if (!VMIME[mt]) mt = VEXT[ext] || "";
+    const x = VMIME[mt]; if (!x) throw E("Format non accepté : envoyez une vidéo MP4, WebM ou MOV.");
+    const size = Math.round(+d.size); if (!(size > 0 && size <= VMAX)) throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum). Filmez plus court ou réduisez la qualité.");
+    const old = must(await db.from("formation_vid").select("id,path").eq("num", s.num).eq("ready", false).lt("at", Date.now() - 3600e3)); // envois abandonnés
+    if (old.length) { await db.storage.from(VBUCKET).remove(old.map(o => o.path)); must(await db.from("formation_vid").delete().in("id", old.map(o => o.id))); }
+    const have = must(await db.from("formation_vid").select("id,purged_at").eq("num", s.num).eq("day", n)).filter(v => !v.purged_at);
+    if (have.length >= VMAXN) throw E("Maximum " + VMAXN + " vidéos par jour. Retirez-en une pour en ajouter une autre.");
+    const id = rnd(12), path = safeNum(s.num) + "/" + n + "/" + id + "." + x, up = await db.storage.from(VBUCKET).createSignedUploadUrl(path);
+    if (up.error || !up.data) throw E("Stockage des vidéos indisponible. Prévenez votre formateur.", 503);
+    must(await db.from("formation_vid").insert({ id, num: s.num, day: n, path, name: nm || "video." + x, mime: mt, size, ready: false, at: Date.now() }));
+    return { id, url: up.data.signedUrl };
+  },
+  async fVidDone(d, c) { // étape 2 : vérifie que la vidéo est bien arrivée (et sa vraie taille), puis la déclare prête
+    const { s, ro } = await fctx(d, c, "fvd", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
+    const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
+    const i = x.path.lastIndexOf("/"), l = await db.storage.from(VBUCKET).list(x.path.slice(0, i), { search: x.path.slice(i + 1), limit: 5 }), o = (l.data || []).find(z => z.name === x.path.slice(i + 1));
+    if (!o) { must(await db.from("formation_vid").delete().eq("id", id)); throw E("La vidéo n'est pas arrivée complète. Réessayez l'envoi."); }
+    const size = Number(o.metadata && o.metadata.size) || Number(x.size) || 0;
+    if (size > VMAX) { await db.storage.from(VBUCKET).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum)."); }
+    must(await db.from("formation_vid").update({ ready: true, size, at: Date.now() }).eq("id", id));
+    const v = await vidsFor(s.num, x.day); return { ok: true, vid: v.list.find(z => z.id === id) || null };
+  },
+  async fVidDel(d, c) { // l'étudiant retire sa vidéo (tant que le travail n'est pas verrouillé)
+    const { s, pm, ro } = await fctx(d, c, "fvx", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
+    const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
+    const p = pm[x.day]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé : la vidéo ne peut plus être retirée.", 409);
+    if (x.path && !x.purged_at) await db.storage.from(VBUCKET).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); return { ok: true };
+  },
+  // ---------- Remises : bibliothèque de tout ce que les étudiants ont envoyé (administrateur, droit « corriger les travaux ») ----------
+  async fLib(d, ctx) { // liste légère : jamais les images elles-mêmes, seulement des compteurs et des tailles
+    check(d.token, "a"); const cid = Math.round(+d.cohort) || await regCohort(), names = hasP(ctx, "students");
+    const sts = must(await studentsC("num,nom,prenoms")).filter(x => (Number(x.cohort) || 1) === cid), inC = new Set(sts.map(x => x.num));
+    const lv = await db.from("formation_lib_v").select("*"); if (lv.error) throw E("Exécutez d'abord le fichier supabase_remises.sql dans Supabase : la bibliothèque n'existe pas encore.");
+    const vr = await db.from("formation_vid").select("num,day,size,ready,purged_at"), vids = vr.error ? [] : (vr.data || []), by = {};
+    const cell = (num, day) => ((by[num] = by[num] || {})[day] = by[num][day] || { day, sub: 0, grade: null, img: 0, imgB: 0, imgP: 0, files: 0, ans: false, vid: 0, vidB: 0, vidP: 0 });
+    (lv.data || []).filter(r => inC.has(r.num)).forEach(r => { const c = cell(r.num, Number(r.day)); c.sub = Number(r.sub || 0); c.grade = r.grade == null ? null : Number(r.grade); c.img = Number(r.n_img || 0); c.imgB = Number(r.img_bytes || 0); c.imgP = Number(r.img_purged || 0); c.files = Number(r.n_files || 0); c.ans = !!r.has_answer; });
+    vids.filter(v => inC.has(v.num) && v.ready).forEach(v => { const c = cell(v.num, Number(v.day)); if (v.purged_at) c.vidP++; else { c.vid++; c.vidB += Number(v.size || 0); } });
+    const list = sts.map(x => ({ num: x.num, name: names ? (x.nom + " " + x.prenoms).trim() : x.num, days: Object.values(by[x.num] || {}).filter(c => c.img || c.vid || c.files || c.ans || c.imgP || c.vidP).sort((a, b) => a.day - b.day).map(c => ({ ...c, title: (dayDef(c.day) || {}).title || "" })) })).filter(x => x.days.length);
+    const tot = { students: list.length, img: 0, imgB: 0, imgP: 0, vid: 0, vidB: 0, vidP: 0 }; list.forEach(x => x.days.forEach(c => { tot.img += c.img; tot.imgB += c.imgB; tot.imgP += c.imgP; tot.vid += c.vid; tot.vidB += c.vidB; tot.vidP += c.vidP; }));
+    return { cohort: cid, list, tot, vmax: VMAX };
+  },
+  async fLibGet(d, ctx) { // tout le contenu d'une remise (pour l'enregistrer sur l'ordinateur) : texte, code, images et liens de téléchargement des vidéos
+    check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30), n = Math.round(+d.day), x = dayDef(n); if (!x) throw E("Jour inconnu.", 404);
+    const r = must(await db.from("formation_prog").select("*").eq("num", num).eq("day", n).maybeSingle()), s = must(await db.from("students").select("nom,prenoms").eq("num", num).maybeSingle()); if (!s) throw E("Étudiant introuvable.", 404);
+    const dt = (r && r.data) || {}, V = await vidsFor(num, n);
+    return { num, name: hasP(ctx, "students") ? (s.nom + " " + s.prenoms).trim() : num, day: n, title: x.title, sub: r ? Number(r.sub || 0) : 0, att: r ? r.att || 0 : 0, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null, grade: r && r.grade != null ? Number(r.grade) : null, comment: r ? r.comment || "" : "",
+      data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []) }, vids: V.list, vidsPurged: V.purged, imgPurged: Number(dt.shots_purged || 0) };
+  },
+  async fPurge(d, ctx) { // libère de l'espace : supprime les vidéos et/ou les images. Ne touche JAMAIS aux notes, commentaires, bulletin, attestation, réponses écrites, codes ni questions théoriques.
+    check(d.token, "a"); const kind = ["videos", "images", "both"].includes(d.kind) ? d.kind : ""; if (!kind) throw E("Choisissez ce qu'il faut supprimer.");
+    const day = d.day ? Math.round(+d.day) : null; if (day != null && !(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
+    const before = d.before ? Date.parse(String(d.before).slice(0, 10) + "T00:00:00+01:00") : null; if (d.before && isNaN(before)) throw E("Date invalide.");
+    let nums = null; if (d.num) nums = [String(d.num).toUpperCase().slice(0, 30)]; else if (d.cohort_only) { const cid = Math.round(+d.cohort) || 1; nums = must(await studentsC("num")).filter(x => (Number(x.cohort) || 1) === cid).map(x => x.num); if (!nums.length) nums = ["-"]; }
+    const ok = (r, atK) => (!nums || nums.includes(r.num)) && (day == null || Number(r.day) === day) && (before == null || Number(r[atK] || 0) < before);
+    const out = { videos: { n: 0, bytes: 0 }, images: { n: 0, rows: 0, bytes: 0 } }; let vrows = [];
+    if (kind !== "images") { const r = await db.from("formation_vid").select("*"); if (!r.error) { vrows = (r.data || []).filter(x => x.ready && !x.purged_at && ok(x, "at")); out.videos = { n: vrows.length, bytes: vrows.reduce((t, x) => t + Number(x.size || 0), 0) }; } }
+    if (kind !== "videos") { const r = await db.from("formation_lib_v").select("*"); if (r.error) throw E("Exécutez d'abord le fichier supabase_remises.sql dans Supabase."); const rows = (r.data || []).filter(x => Number(x.n_img) > 0 && ok(x, "sub")); out.images = { n: rows.reduce((t, x) => t + Number(x.n_img), 0), rows: rows.length, bytes: rows.reduce((t, x) => t + Number(x.img_bytes || 0), 0) }; }
+    if (!d.run) return { ok: true, dry: true, ...out };
+    if (String(d.confirm || "") !== "VIDER") throw E("Tapez VIDER pour confirmer.");
+    for (let i = 0; i < vrows.length; i += 100) { const ch = vrows.slice(i, i + 100); await db.storage.from(VBUCKET).remove(ch.map(x => x.path)); must(await db.from("formation_vid").update({ purged_at: Date.now() }).in("id", ch.map(x => x.id))); }
+    if (kind !== "videos" && out.images.rows) { const r = await db.rpc("formation_purge_images", { p_nums: nums, p_day: day, p_before: before }); if (r.error) throw E("Erreur pendant la suppression des images : " + r.error.message); }
+    return { ok: true, dry: false, ...out };
+  },
   async fSave(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fv", 900); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm), p = pm[n];
     if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
@@ -649,7 +736,7 @@ const A = {
     if (passedRow(p)) throw E("Ce jour est déjà validé.", 409);
     const r = must(await db.from("formation_prog").select("data").eq("num", s.num).eq("day", n).maybeSingle()), dt = (r && r.data) || {}, code = n >= 16 && n <= 29;
     if (code && Object.values(dt.files || {}).reduce((t, x) => t + String(x).trim().length, 0) < 20) throw E("Écrivez d'abord votre code dans l'éditeur.");
-    if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot && !(dt.shots && dt.shots.length)) throw E("Ajoutez un lien, une description ou au moins une image de votre travail.");
+    if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot && !(dt.shots && dt.shots.length) && !(await vidsFor(s.num, n)).list.length) throw E("Ajoutez un lien, une description, une image ou une vidéo de votre travail.");
     const Q = quizOf(n), qa = dt.qa || {}; if (Q && Q.some((q, i) => qa[i] == null || qa[i] === "")) throw E("Répondez d'abord à toutes les questions théoriques.");
     const sc = qscore(n, qa);
     must(await db.from("formation_prog").upsert({ num: s.num, day: n, sub: Date.now(), grade: null, gp: null, gt: sc ? sc.v : null, comment: "", att: (p && p.att || 0) + 1 })); return { ok: true };
@@ -669,7 +756,7 @@ const A = {
     const r = must(await db.from("formation_prog").select("*").eq("num", num).eq("day", n).maybeSingle()), s = must(await db.from("students").select("nom,prenoms").eq("num", num).maybeSingle());
     if (!x || !r || !r.sub) throw E("Remise introuvable.", 404);
     const dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, ex = (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i;
-    return { name: s && hasP(c, "students") ? s.nom + " " + s.prenoms : num, n, title: x.title, exercise: ex, data: dt, sub: Number(r.sub), att: r.att || 0, gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), grade: r.grade == null ? null : Number(r.grade), comment: r.comment || "", gat: r.gat ? Number(r.gat) : 0,
+    const V = await vidsFor(num, n); return { vids: V.list, vidsPurged: V.purged, name: s && hasP(c, "students") ? s.nom + " " + s.prenoms : num, n, title: x.title, exercise: ex, data: dt, sub: Number(r.sub), att: r.att || 0, gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), grade: r.grade == null ? null : Number(r.grade), comment: r.comment || "", gat: r.gat ? Number(r.gat) : 0,
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i] })) } : null };
   },
   async fGrade(d) {
@@ -698,7 +785,7 @@ const A = {
     const R = await rankInfo(await cohortOf(s.num)), dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, tc = CT.teach[n] || {}, good = q => q[0] === "qcm" ? q[2][q[3]] : q[0] === "vf" ? (q[2] ? "Vrai" : "Faux") : q[2][0];
     return { rk: R.dayRank(n, r.grade), dayAvg: R.dayAvg[n] != null ? R.dayAvg[n] : null, n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
       sub: Number(r.sub || 0), gat: Number(r.gat || 0), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), grade: Number(r.grade), comment: r.comment || "", att: r.att || 0,
-      data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []), steps: dt.steps || [], ex: dt.ex || [] },
+      vids: (await vidsFor(s.num, n)).list, data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []), steps: dt.steps || [], ex: dt.ex || [] },
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i], good: good(q), ex: qexp(q) })) } : null };
   },
   // ---------- Formation : accès offerts (confidentiel, administrateur uniquement) ----------
