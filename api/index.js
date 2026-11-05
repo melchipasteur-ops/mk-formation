@@ -159,8 +159,11 @@ const openDayOf = c => c.launch ? Math.min(30, Math.max(schedDay(c), c.adm)) : 0
 const levelOf = (paid, off = 0, P = null) => { P = P || pricingOf(null); return paid >= P.total - off ? 30 : P.t1 > 0 && paid >= P.t1 ? P.t1days : P.free; };
 const passed30 = async num => must(await db.from("formation_prog").select("day,grade").eq("num", String(num || ""))).filter(x => x.grade != null && Number(x.grade) >= PASSM).length >= 30;
 const isFree = async num => !!must(await db.from("formation_free").select("num").eq("num", String(num || "")).maybeSingle());
+// Autorisation d'avancer : l'étudiant ouvre les jours 1 à « upto » sans avoir validé les précédents (table formation_skip). Jamais bloquant si la table est absente.
+const skipMap = async () => { try { const r = await db.from("formation_skip").select("*"); if (r.error) return {}; const m = {}; (r.data || []).forEach(x => { m[x.num] = { upto: Math.max(0, Math.min(30, Number(x.upto) || 0)), mode: x.mode === "compose" ? "compose" : "free", note: x.note || "", at: Number(x.at || 0) }; }); return m; } catch (e) { return {}; } };
+const skipOf = async num => { try { const r = await db.from("formation_skip").select("upto,mode").eq("num", String(num || "")).maybeSingle(); return r.error || !r.data ? { upto: 0, mode: "free" } : { upto: Math.max(0, Math.min(30, Number(r.data.upto) || 0)), mode: r.data.mode === "compose" ? "compose" : "free" }; } catch (e) { return { upto: 0, mode: "free" }; } };
 // "gift" = accès offert : jamais exposé à l'étudiant (il voit simplement « accès complet »)
-const fInfo = (paid, pend, c, gift, ov, off = 0) => { const P = c.pr || pricingOf(null), hasT1 = P.t1 > 0 && paid >= P.t1, open = Math.min(30, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0)), full = gift || paid >= P.total - off; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < 30 ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, openDay: open, paid, pend, level: full ? 30 : levelOf(paid, off, P), plan: full ? "complet" : hasT1 ? "tranche1" : "gratuit", remaining: !full && hasT1 ? Math.max(0, P.t1days - open) : null, freeLeft: !full && !hasT1 ? Math.max(0, P.free - open) : null, T1: P.t1, TOTAL: P.total - off, base: P.total, offer: off, free: P.free, t1days: P.t1days }; };
+const fInfo = (paid, pend, c, gift, ov, off = 0, sk = 0) => { const P = c.pr || pricingOf(null), hasT1 = P.t1 > 0 && paid >= P.t1, skO = sk && typeof sk === "object" ? sk : { upto: Number(sk) || 0, mode: "free" }, skp = (c.launch || ov) ? Math.max(0, Math.min(30, Number(skO.upto) || 0)) : 0, open = Math.min(30, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0, skp)), full = gift || paid >= P.total - off; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < 30 ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, skip: skp, skipMode: skp && skO.mode === "compose" ? "compose" : "free", openDay: open, paid, pend, level: full ? 30 : levelOf(paid, off, P), plan: full ? "complet" : hasT1 ? "tranche1" : "gratuit", remaining: !full && hasT1 ? Math.max(0, P.t1days - open) : null, freeLeft: !full && !hasT1 ? Math.max(0, P.free - open) : null, T1: P.t1, TOTAL: P.total - off, base: P.total, offer: off, free: P.free, t1days: P.t1days }; };
 // Classements : rang du jour (parmi les notes du jour) et rang général (par moyenne), dans la promotion de l'étudiant. Égalités = même rang.
 const rankFrom = rows => {
   const byDay = {}, sums = {};
@@ -186,11 +189,12 @@ const gradeOne = async (num, n, g, comment) => {
   return fin;
 };
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
-const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n > fx.level ? "pay" : n > fx.openDay ? "wait" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
-const reasonOf = (a, n, fx) => a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
+const pendDays = (fx, pm) => { const o = []; for (let d = 1; d <= (fx.skip || 0); d++) if (!passedRow(pm[d])) o.push(d); return o; };
+const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n > fx.level ? "pay" : n <= (fx.skip || 0) ? "ok" : n > fx.openDay ? "wait" : fx.skipMode === "compose" && !fx.preview && pendDays(fx, pm).length ? "comp" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
+const reasonOf = (a, n, fx, pm) => a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
   : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DESIGN GRAPH."
   : a === "pay" ? (fx.offer > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.TOTAL + " FCFA en une seule fois pour continuer." : fx.T1 > 0 && fx.paid >= fx.T1 ? "Votre 1re tranche couvre les " + fx.t1days + " premiers jours. Réglez la 2e tranche (" + (fx.base - fx.T1) + " FCFA) pour continuer." : fx.T1 > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.T1 + " FCFA (jours 1 à " + fx.t1days + ") ou " + fx.base + " FCFA (accès complet) pour continuer." : "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.base + " FCFA pour continuer.")
-  : "Validez d'abord le jour précédent (14/20 minimum).";
+  : a === "comp" ? "Votre formateur vous a fait avancer : composez d'abord (et faites valider) le(s) jour(s) " + pendDays(fx, pm || {}).join(", ") + " (14/20 minimum chacun). Vous pouvez les faire le même jour." : "Validez d'abord le jour précédent (14/20 minimum).";
 async function fctx(d, c, key, max = 300) {
   await limit(key + ":" + c.ip, max, 900e3);
   let adm = false; if (d.token) { try { check(d.token, "a"); adm = true; } catch (e) { adm = false; } }
@@ -201,11 +205,11 @@ async function fctx(d, c, key, max = 300) {
   }
   const s = adm ? must(await db.from("students").select("num,nom,prenoms").eq("num", String(d.num).toUpperCase().slice(0, 30)).maybeSingle()) : await findStudent(d.num, d.id, "num,nom,prenoms");
   if (!s) throw E(adm ? "Étudiant introuvable." : "Numéro ou identifiant incorrect.", 404);
-  const ps = must(await db.from("payments").select("amount,st").eq("num", s.num)), fx = fInfo(sum(ps, "valide"), sum(ps, "attente"), await fcfgFor(s.num), await isFree(s.num), must(await db.from("formation_access").select("*").eq("num", s.num).maybeSingle()), await offerOf(s.num));
+  const ps = must(await db.from("payments").select("amount,st").eq("num", s.num)), fx = fInfo(sum(ps, "valide"), sum(ps, "attente"), await fcfgFor(s.num), await isFree(s.num), must(await db.from("formation_access").select("*").eq("num", s.num).maybeSingle()), await offerOf(s.num), await skipOf(s.num));
   must(await db.from("formation_prog").select(cols).eq("num", s.num)).forEach(r => pm[r.day] = r);
   return { s, fx, pm, ro: adm };
 }
-function needDay(d, fx, pm) { const n = Math.round(+d.day); if (!dayDef(n)) throw E("Jour inconnu.", 404); const a = dayAcc(n, fx, pm); if (a !== "ok") throw E(reasonOf(a, n, fx), 403); return n; }
+function needDay(d, fx, pm) { const n = Math.round(+d.day); if (!dayDef(n)) throw E("Jour inconnu.", 404); const a = dayAcc(n, fx, pm); if (a !== "ok") throw E(reasonOf(a, n, fx, pm), 403); return n; }
 function cleanData(d) {
   const o = {}, arr = a => Array.isArray(a) ? a.slice(0, 60).map(Boolean) : [];
   o.steps = arr(d.steps); o.ex = arr(d.ex); o.answer = String(d.answer || "").slice(0, 4000); o.files = {};
@@ -241,7 +245,7 @@ const mediaFor = async (n, num, preview) => {
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
 const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
-  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
+  fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fSkipSet: "f_ctl", fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
 const READONLY = new Set(["fAccessList", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
 async function adminCtx(token) {
@@ -308,7 +312,7 @@ const A = {
     const r = await findStudent(d.num, d.id, COLS + ",photo");
     if (!r) throw E("Numéro ou identifiant incorrect.", 404);
     const pays = must(await db.from("payments").select("*").eq("num", r.num).order("date")).map(x => ({ ...payPub(x), shot: x.shot }));
-    const gift = await isFree(r.num), off = await offerOf(r.num), cf = await fcfgFor(r.num); return { student: { ...enrich(r, pays, off, cf.pr), photo: r.photo, acces: gift, civ: await civOf(r.num) }, pays, groupe: (sum(pays, "valide") + sum(pays, "attente") > 0 || gift) ? cf.grp : "", open: !!(await setting("open")), total: cf.pr.total - off, fx: fInfo(sum(pays, "valide"), sum(pays, "attente"), cf, gift, must(await db.from("formation_access").select("*").eq("num", r.num).maybeSingle()), off) };
+    const gift = await isFree(r.num), off = await offerOf(r.num), cf = await fcfgFor(r.num); return { student: { ...enrich(r, pays, off, cf.pr), photo: r.photo, acces: gift, civ: await civOf(r.num) }, pays, groupe: (sum(pays, "valide") + sum(pays, "attente") > 0 || gift) ? cf.grp : "", open: !!(await setting("open")), total: cf.pr.total - off, fx: fInfo(sum(pays, "valide"), sum(pays, "attente"), cf, gift, must(await db.from("formation_access").select("*").eq("num", r.num).maybeSingle()), off, await skipOf(r.num)) };
   },
   async replaceShot(d, c) {
     await limit("rs:" + c.ip, 30, 3600e3);
@@ -391,7 +395,7 @@ const A = {
   async adminDel(d, c) { needRoot(d, c); must(await db.from("admins").delete().eq("id", String(d.id))); return { ok: true }; },
   async audit(d, c) { needRoot(d, c); return { list: must(await db.from("admin_audit").select("*").order("at", { ascending: false }).limit(300)).map(x => ({ ...x, at: Number(x.at) })) }; },
   async backup(d, c) {
-    needRoot(d, c); const T = ["students", "payments", "partners", "payouts", "dreq", "log", "settings", "formation_cfg", "formation_prog", "formation_free", "formation_access", "formation_notes", "admins", "admin_audit"], out = { date: Date.now(), tables: {}, note: "Les photos, captures et mots de passe ne sont pas inclus." };
+    needRoot(d, c); const T = ["students", "payments", "partners", "payouts", "dreq", "log", "settings", "formation_cfg", "formation_prog", "formation_free", "formation_access", "formation_skip", "formation_notes", "admins", "admin_audit"], out = { date: Date.now(), tables: {}, note: "Les photos, captures et mots de passe ne sont pas inclus." };
     for (const t of T) { try { out.tables[t] = must(await db.from(t).select("*")).map(r => { const o = { ...r }; ["photo", "shot", "pin", "pin_hash", "pass_hash"].forEach(k => delete o[k]); if (o.data && o.data.shot) o.data = { ...o.data, shot: "(image non incluse)" }; if (o.data && o.data.shots) o.data = { ...o.data, shots: "(images non incluses)" }; return o; }); } catch (e) { out.tables[t] = "(table absente)"; } }
     return out;
   },
@@ -576,7 +580,7 @@ const A = {
     const p = s.partner ? await getPartner(s.partner) : null, label = s.nom + " " + s.prenoms, r = must(await db.from("dreq").select("*").eq("num", s.num).maybeSingle());
     // L'étudiant quitte immédiatement la liste des inscrits (chez vous comme chez le partenaire), que le partenaire ait accepté ou non.
     const acc = !p ? "inscription directe" : r && r.st === "ok" ? "accord du partenaire obtenu" : r && r.st === "attente" ? "demande au partenaire restée sans réponse" : r && r.st === "non" ? "refus du partenaire" : "accord du partenaire non demandé";
-    must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
+    must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); await db.from("formation_skip").delete().eq("num", s.num); must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
     must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: label, statut: s.status, partner: p ? p.name : "Direct", how: "Supprimé immédiatement par l'administrateur (" + acc + ")" }));
     return { ok: true };
   },
@@ -655,10 +659,10 @@ const A = {
     check(d.token, "a"); const cid = Math.round(+d.cohort) || await regCohort();
     const [c, rows, sts, ps, frs] = await Promise.all([fcfg(cid), db.from("formation_prog").select("num,day,sub,gt,gp,grade,att").order("sub", { ascending: false }), studentsC("num,nom,prenoms"), db.from("payments").select("num,amount,st"), db.from("formation_free").select("num")]);
     const all = must(sts), st = all.filter(x => (Number(x.cohort) || 1) === cid), inC = new Set(st.map(x => x.num)), subs = must(rows).filter(r => inC.has(r.num)), pays = must(ps), gifts = new Set(must(frs).map(x => x.num)), name = {}; st.forEach(x => name[x.num] = x.nom + " " + x.prenoms);
-    const names = hasP(ctx, "students"), OFS = await offersMap(), T1X = await t1Map(), PMX = await pricesMap(), RK = rankFrom(subs);
+    const names = hasP(ctx, "students"), OFS = await offersMap(), T1X = await t1Map(), PMX = await pricesMap(), RK = rankFrom(subs), SKM = await skipMap();
     return { stats: { classAvg: RK.classAvg, nr: RK.nr, dayAvg: RK.dayAvg }, cohort: cid, cohorts: await cohortsList(all), me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
       subs: !hasP(ctx, "f_corr") ? [] : subs.filter(r => r.sub).map(r => ({ num: r.num, name: names ? (name[r.num] || r.num) : r.num, day: r.day, sub: Number(r.sub), grade: r.grade == null ? null : Number(r.grade), gt: r.gt == null ? null : Number(r.gt) })),
-      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : levelOf(paid, OFS[x.num] || 0, withT1(PMX[Number(x.cohort) || 1], T1X[x.num])), done: subs.filter(r => r.num === x.num && passedRow(r)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num) }; }) };
+      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : levelOf(paid, OFS[x.num] || 0, withT1(PMX[Number(x.cohort) || 1], T1X[x.num])), done: subs.filter(r => r.num === x.num && passedRow(r)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num), skip: SKM[x.num] ? SKM[x.num].upto : 0, skipMode: SKM[x.num] ? SKM[x.num].mode : "free", skipDone: SKM[x.num] ? subs.filter(r => r.num === x.num && r.day <= SKM[x.num].upto && passedRow(r)).length : 0, skipNote: SKM[x.num] ? SKM[x.num].note : "", skipAt: SKM[x.num] ? SKM[x.num].at : 0 }; }) };
   },
   async fSub(d, c) {
     check(d.token, "a"); const n = Math.round(+d.day), x = dayDef(n), num = String(d.num || "").slice(0, 30);
@@ -737,6 +741,27 @@ const A = {
   async fSetStart(d) { // date de démarrage automatique (minuit, heure du Bénin)
     check(d.token, "a"); const cid = Math.round(+d.cohort) || 1, t = Date.parse(String(d.date || "").slice(0, 10) + "T00:00:00+01:00"); if (isNaN(t)) throw E("Date invalide.");
     must(await db.from("formation_cfg").upsert({ id: cid, start_at: t })); return { ok: true, start: t };
+  },
+  async fSkipSet(d) { // avancer des étudiants sans qu'ils aient composé · rétablir à la normale · ou les faire composer les jours avancés
+    check(d.token, "a");
+    const nums = [...new Set((Array.isArray(d.nums) ? d.nums : [d.num]).map(x => String(x || "").toUpperCase().slice(0, 30)).filter(Boolean))];
+    if (!nums.length) throw E("Aucun étudiant sélectionné."); if (nums.length > 1000) throw E("1000 étudiants maximum à la fois.");
+    const miss = e => /formation_skip|relation|schema cache|does not exist|column/i.test(String(e && e.message)) ? E("Exécutez (ou ré-exécutez) le fichier supabase_avancer.sql dans Supabase : la table « formation_skip » est absente ou incomplète.") : e;
+    const chunks = []; for (let i = 0; i < nums.length; i += 100) chunks.push(nums.slice(i, i + 100));
+    if (d.compose) { // rétablissement n°2 : les jours avancés restent ouverts (tous le même jour si besoin) mais doivent être composés et validés pour continuer
+      let n = 0; for (const ch of chunks) { const r = await db.from("formation_skip").update({ mode: "compose" }).in("num", ch).select("num"); if (r.error) throw miss(r.error); n += (r.data || []).length; }
+      if (!n) throw E("Aucun des étudiants choisis n'est actuellement avancé.", 404);
+      return { ok: true, n, skipped: nums.length - n };
+    }
+    if (!d.on) { for (const ch of chunks) { const r = await db.from("formation_skip").delete().in("num", ch); if (r.error) throw miss(r.error); } return { ok: true, n: nums.length }; } // rétablissement n°1 : règle normale
+    const day = Math.round(+d.day); if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
+    const known = new Set(); for (const ch of chunks) must(await db.from("students").select("num").in("num", ch)).forEach(x => known.add(x.num));
+    const note = String(d.note || "").slice(0, 200), at = Date.now(), rows = nums.filter(n => known.has(n)).map(num => ({ num, upto: day, mode: "free", note, at }));
+    if (!rows.length) throw E("Aucun étudiant valide dans la sélection.", 404);
+    let r = await db.from("formation_skip").upsert(rows);
+    if (r.error && /mode/i.test(String(r.error.message))) r = await db.from("formation_skip").upsert(rows.map(({ mode, ...o }) => o)); // base pas encore mise à jour : fonctionne comme avant
+    if (r.error) throw miss(r.error);
+    return { ok: true, n: rows.length, unknown: nums.length - rows.length };
   },
   async fAccessList(d) {
     check(d.token, "a"); const ac = must(await db.from("formation_access").select("*").order("at", { ascending: false })), st = must(await db.from("students").select("num,nom,prenoms")), nm = {}; st.forEach(x => nm[x.num] = x.nom + " " + x.prenoms);
