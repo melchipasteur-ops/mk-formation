@@ -246,6 +246,7 @@ const mediaFor = async (n, num, preview) => {
 // Les images des remises restent dans formation_prog.data.shots. Aucune adresse publique : uniquement des liens signés qui expirent.
 const VBUCKET = "formation-subs", VMAX = 15 * 1024 * 1024, VMAXN = 5;
 const VMIME = { "video/mp4": "mp4", "video/x-m4v": "mp4", "video/quicktime": "mov", "video/webm": "webm" }, VEXT = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
+const VEXTS = new Set(["mp4", "m4v", "mov", "qt", "webm", "avi", "mkv", "wmv", "asf", "flv", "f4v", "3gp", "3g2", "mpg", "mpeg", "mpe", "m2v", "ogv", "ogg", "ts", "mts", "m2ts", "mxf", "vob", "divx", "rm", "rmvb", "hevc", "h264", "mjpeg", "dv"]);
 const safeNum = n => String(n || "").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
 const vName = x => String(x.name || "video").replace(/[^\w.\- ()]/g, "_").slice(0, 80);
 const vidOut = (x, u) => ({ id: x.id, day: Number(x.day), name: x.name || "video", size: Number(x.size || 0), at: Number(x.at || 0), url: u || "", dl: u ? u + (u.includes("?") ? "&" : "?") + "download=" + encodeURIComponent(vName(x)) : "" });
@@ -658,8 +659,9 @@ const A = {
     const { s, fx, pm, ro } = await fctx(d, c, "fvi", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
     const n = needDay(d, fx, pm), p = pm[n]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
     const pr = await db.from("formation_vid").select("id").limit(1); if (pr.error) throw E("L'envoi de vidéos n'est pas encore activé. Prévenez votre formateur.", 503);
-    const nm = String(d.name || "").slice(0, 120), ext = (nm.split(".").pop() || "").toLowerCase(); let mt = String(d.mime || "").toLowerCase(); if (!VMIME[mt]) mt = VEXT[ext] || "";
-    const x = VMIME[mt]; if (!x) throw E("Format non accepté : envoyez une vidéo MP4, WebM ou MOV.");
+    const nm = String(d.name || "").slice(0, 120), ext = (nm.split(".").pop() || "").toLowerCase(); let mt = String(d.mime || "").toLowerCase().slice(0, 100);
+    const okExt = VEXTS.has(ext), okMime = /^video\/[\w.+-]+$/.test(mt); if (!okExt && !okMime) throw E("Ce fichier n'est pas une vidéo. Choisissez un fichier vidéo (MP4, MOV, AVI, MKV, WebM, 3GP…).");
+    const x = /^[a-z0-9]{2,5}$/.test(ext) ? ext : ((mt.split("/")[1] || "").replace(/^x-/, "").replace(/[^a-z0-9]/g, "").slice(0, 5) || "mp4"); if (!okMime) mt = VEXT[x] || "video/" + x;
     const size = Math.round(+d.size); if (!(size > 0 && size <= VMAX)) throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum). Filmez plus court ou réduisez la qualité.");
     const old = must(await db.from("formation_vid").select("id,path").eq("num", s.num).eq("ready", false).lt("at", Date.now() - 3600e3)); // envois abandonnés
     if (old.length) { await db.storage.from(VBUCKET).remove(old.map(o => o.path)); must(await db.from("formation_vid").delete().in("id", old.map(o => o.id))); }
@@ -672,7 +674,7 @@ const A = {
   },
   async fVidDone(d, c) { // étape 2 : vérifie que la vidéo est bien arrivée (et sa vraie taille), puis la déclare prête
     const { s, ro } = await fctx(d, c, "fvd", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
-    const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
+    const id = String(d.vid || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
     const i = x.path.lastIndexOf("/"), l = await db.storage.from(VBUCKET).list(x.path.slice(0, i), { search: x.path.slice(i + 1), limit: 5 }), o = (l.data || []).find(z => z.name === x.path.slice(i + 1));
     if (!o) { must(await db.from("formation_vid").delete().eq("id", id)); throw E("La vidéo n'est pas arrivée complète. Réessayez l'envoi."); }
     const size = Number(o.metadata && o.metadata.size) || Number(x.size) || 0;
@@ -682,7 +684,7 @@ const A = {
   },
   async fVidDel(d, c) { // l'étudiant retire sa vidéo (tant que le travail n'est pas verrouillé)
     const { s, pm, ro } = await fctx(d, c, "fvx", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
-    const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
+    const id = String(d.vid || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
     const p = pm[x.day]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé : la vidéo ne peut plus être retirée.", 409);
     if (x.path && !x.purged_at) await db.storage.from(VBUCKET).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); return { ok: true };
   },
