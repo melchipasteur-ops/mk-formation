@@ -244,7 +244,7 @@ const mediaFor = async (n, num, preview) => {
 // ===================== REMISES : VIDÉOS DES ÉTUDIANTS ET BIBLIOTHÈQUE =====================
 // Les vidéos vont directement dans un bucket PRIVÉ (formation-subs) via une adresse d'envoi signée : elles ne passent pas par le serveur.
 // Les images des remises restent dans formation_prog.data.shots. Aucune adresse publique : uniquement des liens signés qui expirent.
-const VBUCKET = "formation-subs", VMAX = 15 * 1024 * 1024, VMAXN = 5;
+const VBUCKET = "formation-subs", VMAX = 15 * 1024 * 1024, VMAXN = 8;
 // Tous les formats vidéo sont acceptés (par type MIME « video/* » ou par extension). La lecture dans le navigateur dépend du format ; le téléchargement marche toujours.
 const VEXTS = ["mp4", "m4v", "mov", "qt", "webm", "mkv", "avi", "wmv", "asf", "flv", "f4v", "3gp", "3g2", "mpg", "mpeg", "mpe", "ogv", "ogg", "ts", "mts", "m2ts", "mxf", "vob", "divx", "hevc", "h264", "rm", "rmvb"], VMT = { mov: "video/quicktime", qt: "video/quicktime", mkv: "video/x-matroska", avi: "video/x-msvideo", wmv: "video/x-ms-wmv", asf: "video/x-ms-asf", flv: "video/x-flv", "3gp": "video/3gpp", "3g2": "video/3gpp2", m4v: "video/x-m4v", mpg: "video/mpeg", mpeg: "video/mpeg", mpe: "video/mpeg", ogv: "video/ogg", ogg: "video/ogg", ts: "video/mp2t", mts: "video/mp2t", m2ts: "video/mp2t" };
 const vKind = (name, mime) => { const ext = (String(name || "").split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, ""), mt = String(mime || "").toLowerCase().split(";")[0].trim(), isMt = mt.startsWith("video/");
