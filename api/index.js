@@ -190,11 +190,11 @@ const gradeOne = async (num, n, g, comment) => {
 };
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
 const pendDays = (fx, pm) => { const o = []; for (let d = 1; d <= (fx.skip || 0); d++) if (!passedRow(pm[d])) o.push(d); return o; };
-const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n > fx.level ? "pay" : n <= (fx.skip || 0) ? "ok" : n > fx.openDay ? "wait" : fx.skipMode === "compose" && !fx.preview && pendDays(fx, pm).length ? "comp" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
+const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n <= (fx.skip || 0) ? (n > fx.level ? "view" : "ok") : n > fx.level ? "pay" : n > fx.openDay ? "wait" : fx.skipMode === "compose" && !fx.preview && pendDays(fx, pm).length ? "comp" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
 const reasonOf = (a, n, fx, pm) => a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
   : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DESIGN GRAPH."
   : a === "pay" ? (fx.offer > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.TOTAL + " FCFA en une seule fois pour continuer." : fx.T1 > 0 && fx.paid >= fx.T1 ? "Votre 1re tranche couvre les " + fx.t1days + " premiers jours. Réglez la 2e tranche (" + (fx.base - fx.T1) + " FCFA) pour continuer." : fx.T1 > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.T1 + " FCFA (jours 1 à " + fx.t1days + ") ou " + fx.base + " FCFA (accès complet) pour continuer." : "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.base + " FCFA pour continuer.")
-  : a === "comp" ? "Votre formateur vous a fait avancer : composez d'abord (et faites valider) le(s) jour(s) " + pendDays(fx, pm || {}).join(", ") + " (14/20 minimum chacun). Vous pouvez les faire le même jour." : "Validez d'abord le jour précédent (14/20 minimum).";
+  : a === "view" ? "Ce jour est ouvert en lecture seule : vous pouvez suivre le cours, mais vous devez d'abord payer pour composer (remettre votre travail)." : a === "comp" ? "Votre formateur vous a fait avancer : composez d'abord (et faites valider) le(s) jour(s) " + pendDays(fx, pm || {}).join(", ") + " (14/20 minimum chacun). Vous pouvez les faire le même jour." : "Validez d'abord le jour précédent (14/20 minimum).";
 async function fctx(d, c, key, max = 300) {
   await limit(key + ":" + c.ip, max, 900e3);
   let adm = false; if (d.token) { try { check(d.token, "a"); adm = true; } catch (e) { adm = false; } }
@@ -209,7 +209,7 @@ async function fctx(d, c, key, max = 300) {
   must(await db.from("formation_prog").select(cols).eq("num", s.num)).forEach(r => pm[r.day] = r);
   return { s, fx, pm, ro: adm };
 }
-function needDay(d, fx, pm) { const n = Math.round(+d.day); if (!dayDef(n)) throw E("Jour inconnu.", 404); const a = dayAcc(n, fx, pm); if (a !== "ok") throw E(reasonOf(a, n, fx, pm), 403); return n; }
+function needDay(d, fx, pm, write) { const n = Math.round(+d.day); if (!dayDef(n)) throw E("Jour inconnu.", 404); const a = dayAcc(n, fx, pm); if (a === "view") { if (write) throw E(reasonOf(a, n, fx, pm), 403); return n; } if (a !== "ok") throw E(reasonOf(a, n, fx, pm), 403); return n; } // « view » = lecture seule (avancé sans avoir payé) : toute écriture (travail, quiz, vidéo) est refusée
 function cleanData(d) {
   const o = {}, arr = a => Array.isArray(a) ? a.slice(0, 60).map(Boolean) : [];
   o.steps = arr(d.steps); o.ex = arr(d.ex); o.answer = String(d.answer || "").slice(0, 4000); o.files = {};
@@ -245,8 +245,10 @@ const mediaFor = async (n, num, preview) => {
 // Les vidéos vont directement dans un bucket PRIVÉ (formation-subs) via une adresse d'envoi signée : elles ne passent pas par le serveur.
 // Les images des remises restent dans formation_prog.data.shots. Aucune adresse publique : uniquement des liens signés qui expirent.
 const VBUCKET = "formation-subs", VMAX = 15 * 1024 * 1024, VMAXN = 5;
-const VMIME = { "video/mp4": "mp4", "video/x-m4v": "mp4", "video/quicktime": "mov", "video/webm": "webm" }, VEXT = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
-const VEXTS = new Set(["mp4", "m4v", "mov", "qt", "webm", "avi", "mkv", "wmv", "asf", "flv", "f4v", "3gp", "3g2", "mpg", "mpeg", "mpe", "m2v", "ogv", "ogg", "ts", "mts", "m2ts", "mxf", "vob", "divx", "rm", "rmvb", "hevc", "h264", "mjpeg", "dv"]);
+// Tous les formats vidéo sont acceptés (par type MIME « video/* » ou par extension). La lecture dans le navigateur dépend du format ; le téléchargement marche toujours.
+const VEXTS = ["mp4", "m4v", "mov", "qt", "webm", "mkv", "avi", "wmv", "asf", "flv", "f4v", "3gp", "3g2", "mpg", "mpeg", "mpe", "ogv", "ogg", "ts", "mts", "m2ts", "mxf", "vob", "divx", "hevc", "h264", "rm", "rmvb"], VMT = { mov: "video/quicktime", qt: "video/quicktime", mkv: "video/x-matroska", avi: "video/x-msvideo", wmv: "video/x-ms-wmv", asf: "video/x-ms-asf", flv: "video/x-flv", "3gp": "video/3gpp", "3g2": "video/3gpp2", m4v: "video/x-m4v", mpg: "video/mpeg", mpeg: "video/mpeg", mpe: "video/mpeg", ogv: "video/ogg", ogg: "video/ogg", ts: "video/mp2t", mts: "video/mp2t", m2ts: "video/mp2t" };
+const vKind = (name, mime) => { const ext = (String(name || "").split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, ""), mt = String(mime || "").toLowerCase().split(";")[0].trim(), isMt = mt.startsWith("video/");
+  if (!isMt && !VEXTS.includes(ext)) return null; const sub = isMt ? mt.slice(6).replace(/^x-/, "").replace(/[^a-z0-9]/g, "").slice(0, 8) : "", x = VEXTS.includes(ext) ? ext : (sub || "mp4"); return { x, mt: isMt ? mt : (VMT[x] || "video/" + x) }; };
 const safeNum = n => String(n || "").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
 const vName = x => String(x.name || "video").replace(/[^\w.\- ()]/g, "_").slice(0, 80);
 const vidOut = (x, u) => ({ id: x.id, day: Number(x.day), name: x.name || "video", size: Number(x.size || 0), at: Number(x.at || 0), url: u || "", dl: u ? u + (u.includes("?") ? "&" : "?") + "download=" + encodeURIComponent(vName(x)) : "" });
@@ -261,10 +263,18 @@ const vidsFor = async (num, day) => {
   } catch (e) { return { list: [], purged: 0 }; }
 };
 
+// Supprime un étudiant et tout ce qui lui est rattaché (paiements, progression, vidéos, accès…), puis l'inscrit dans le journal.
+const wipeStudent = async (s, pname, how) => {
+  must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); await db.from("formation_skip").delete().eq("num", s.num);
+  try { const vr = await db.from("formation_vid").select("path,purged_at").eq("num", s.num), ps = (vr.data || []).filter(x => !x.purged_at).map(x => x.path); for (let i = 0; i < ps.length; i += 100) await db.storage.from(VBUCKET).remove(ps.slice(i, i + 100)); await db.from("formation_vid").delete().eq("num", s.num); } catch (e) { /* ignoré */ }
+  must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
+  must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: s.nom + " " + s.prenoms, statut: s.status, partner: pname, how }));
+};
+
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
-const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
+const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", bulkDelStudents: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
   fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fSkipSet: "f_ctl", fLib: "f_corr", fLibGet: "f_corr", fGradeInfo: "f_corr", fPurge: ROOTONLY, fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
 const READONLY = new Set(["fAccessList", "fLib", "fLibGet", "fGradeInfo", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
@@ -459,11 +469,11 @@ const A = {
   async pshot(d) { const t = check(d.token, "p"); await needSet(t); const x = must(await db.from("payments").select("partner,shot").eq("id", String(d.id || "")).maybeSingle()); if (!x || x.partner !== t.pid) throw E("Introuvable.", 404); return { data: x.shot }; },
   async adminState(d, c) {
     check(d.token, "a");
-    const [ps, st, dq, lg, py, pm, fp, fr] = await Promise.all([db.from("partners").select("*").order("name"), db.from("students").select(COLS + ",conf,conf_at,conf_by,cohort").order("date"), db.from("dreq").select("*").order("date", { ascending: false }), db.from("log").select("*").order("date", { ascending: false }).limit(100), db.from("payouts").select("*").order("date", { ascending: false }), db.from("payments").select(PCOLS).order("date", { ascending: false }), db.from("formation_prog").select("num,grade"), db.from("formation_free").select("num")]);
-    const pays = must(pm).map(payPub), pouts = must(py), cnt = {}; must(fp).forEach(r => { if (r.grade != null && Number(r.grade) >= PASSM) cnt[r.num] = (cnt[r.num] || 0) + 1; }); const gf = new Set(must(fr).map(x => x.num));
+    const [ps, st, dq, lg, py, pm, fp, fr] = await Promise.all([db.from("partners").select("*").order("name"), db.from("students").select(COLS + ",conf,conf_at,conf_by,cohort").order("date"), db.from("dreq").select("*").order("date", { ascending: false }), db.from("log").select("*").order("date", { ascending: false }).limit(100), db.from("payouts").select("*").order("date", { ascending: false }), db.from("payments").select(PCOLS).order("date", { ascending: false }), db.from("formation_prog").select("num,grade,sub"), db.from("formation_free").select("num")]);
+    const pays = must(pm).map(payPub), pouts = must(py), cnt = {}, comp = {}; must(fp).forEach(r => { if (r.sub) comp[r.num] = (comp[r.num] || 0) + 1; if (r.grade != null && Number(r.grade) >= PASSM) cnt[r.num] = (cnt[r.num] || 0) + 1; }); const gf = new Set(must(fr).map(x => x.num));
     const hs = hasP(c, "students"), hp = hasP(c, "partners"), hd = hasP(c, "delete");
     const stRows = (() => { try { return must(st); } catch (err) { return null; } })() || must(await db.from("students").select(COLS).order("date")); // repli si le script SQL « confirmation » n'a pas encore été exécuté
-    const OFFS = await offersMap(), T1M = await t1Map(), PM = await pricesMap(), CIVM = await civMap(), students = stRows.map(r => { const e0 = enrich(r, pays, OFFS[r.num] || 0, withT1(PM[Number(r.cohort) || 1], T1M[r.num])), e = { ...e0, t1o: T1M[r.num] || 0, t1std: (PM[Number(r.cohort) || 1] || {}).t1 || 0, t1def: T1_REDUIT, civ: CIVM[r.num] || "", cohort: Number(r.cohort) || 1, conf: r.conf || "", conf_at: Number(r.conf_at || 0), conf_by: r.conf_by || "", fdone: cnt[r.num] || 0, attOk: (e0.solde || gf.has(r.num)) && (cnt[r.num] || 0) >= 30 }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
+    const OFFS = await offersMap(), T1M = await t1Map(), PM = await pricesMap(), CIVM = await civMap(), students = stRows.map(r => { const e0 = enrich(r, pays, OFFS[r.num] || 0, withT1(PM[Number(r.cohort) || 1], T1M[r.num])), e = { ...e0, t1o: T1M[r.num] || 0, t1std: (PM[Number(r.cohort) || 1] || {}).t1 || 0, t1def: T1_REDUIT, civ: CIVM[r.num] || "", cohort: Number(r.cohort) || 1, conf: r.conf || "", conf_at: Number(r.conf_at || 0), conf_by: r.conf_by || "", fdone: cnt[r.num] || 0, fcomp: comp[r.num] || 0, gift: gf.has(r.num), attOk: (e0.solde || gf.has(r.num)) && (cnt[r.num] || 0) >= 30 }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
     return { me: { name: c.who ? c.who.name : "", root: !c.who || c.who.root, perms: c.who ? c.who.pm : Object.keys(PERMS), tfa: !!process.env.ADMIN_TOTP_SECRET, weakPw: !!(c.who && c.who.root) && !strongOk(String(process.env.ADMIN_PASSWORD || "")) }, total: TOTAL, payments: hasP(c, "payments") ? pays : [], partners: hp ? must(ps).map(p => part(p, true, pouts.filter(x => x.partner === p.id).map(payRow), baseOf(p, pays), commOf(p, pays))) : [], students, dreq: hd || hp ? must(dq).map(r => ({ ...r, date: Number(r.date) })) : [], log: hd ? must(lg).map(g => ({ ...g, date: Number(g.date) })) : [], payouts: hp ? pouts.map(payRow) : [], open: !!(await setting("open")), prod: !!(await setting("prod")), regClosed: !!(await setting("reg_closed")), cohorts: await cohortsList(stRows) };
   },
   async img(d) { check(d.token, "a"); const r = must(await db.from("students").select("photo").eq("num", String(d.num || "")).maybeSingle()); if (!r) throw E("Introuvable.", 404); return { data: r.photo }; },
@@ -529,6 +539,19 @@ const A = {
       if (i > 0 && (T[i - 1].to == null || t.from <= T[i - 1].to)) throw E("Les paliers se chevauchent : " + T[i - 1].from + "-" + (T[i - 1].to == null ? "…" : T[i - 1].to) + " et " + t.from + "-" + (t.to == null ? "…" : t.to) + ". Chaque étudiant ne peut avoir qu'un seul taux.");
     });
     must(await db.from("partners").update({ tiers: T }).eq("id", p.id)); return { ok: true };
+  },
+  async bulkDelStudents(d, c) { // suppression en lot, réservée aux étudiants qui n'ont NI payé NI composé. Les autres sont « mis de côté » : protégés, jamais supprimés ici.
+    check(d.token, "a"); if (!hasP(c, "delete")) throw E("Vous n'avez pas le droit de supprimer des inscriptions.", 403);
+    const nums = [...new Set((Array.isArray(d.nums) ? d.nums : []).map(x => String(x || "").toUpperCase().trim().slice(0, 30)).filter(Boolean))];
+    if (!nums.length) throw E("Aucun étudiant sélectionné."); if (nums.length > 60) throw E("60 étudiants maximum par envoi.");
+    const sts = must(await db.from("students").select("num,nom,prenoms,status,partner").in("num", nums)), pay = new Set(), comp = new Set(), gift = new Set();
+    must(await db.from("payments").select("num,st").in("num", nums)).forEach(x => { if (x.st === "valide" || x.st === "attente") pay.add(x.num); });
+    must(await db.from("formation_prog").select("num,sub,grade").in("num", nums)).forEach(x => { if (x.sub || x.grade != null) comp.add(x.num); });
+    must(await db.from("formation_free").select("num").in("num", nums)).forEach(x => gift.add(x.num));
+    const om = await offersMap(), deleted = [], kept = [];
+    for (const s of sts) { const why = pay.has(s.num) ? "a payé" : comp.has(s.num) ? "a déjà composé" : gift.has(s.num) ? "accès offert" : om[s.num] > 0 ? "offre accordée" : ""; if (why) { kept.push({ num: s.num, why }); continue; }
+      const p = s.partner ? await getPartner(s.partner) : null; await wipeStudent(s, p ? p.name : "Direct", "Supprimé en lot par l'administrateur (n'avait ni payé ni composé)"); deleted.push(s.num); }
+    const found = new Set(sts.map(x => x.num)); return { ok: true, deleted, kept, missing: nums.filter(n => !found.has(n)) };
   },
   async moveStudent(d) { // affecter un ou plusieurs étudiants à une autre promotion
     check(d.token, "a"); const to = Math.round(+d.to) || 0, nums = [...new Set([].concat(d.nums || d.num || []).map(x => String(x || "").toUpperCase().trim().slice(0, 30)).filter(Boolean))].slice(0, 200);
@@ -600,8 +623,7 @@ const A = {
     const p = s.partner ? await getPartner(s.partner) : null, label = s.nom + " " + s.prenoms, r = must(await db.from("dreq").select("*").eq("num", s.num).maybeSingle());
     // L'étudiant quitte immédiatement la liste des inscrits (chez vous comme chez le partenaire), que le partenaire ait accepté ou non.
     const acc = !p ? "inscription directe" : r && r.st === "ok" ? "accord du partenaire obtenu" : r && r.st === "attente" ? "demande au partenaire restée sans réponse" : r && r.st === "non" ? "refus du partenaire" : "accord du partenaire non demandé";
-    must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); await db.from("formation_skip").delete().eq("num", s.num); try { const vr = await db.from("formation_vid").select("path,purged_at").eq("num", s.num), ps = (vr.data || []).filter(x => !x.purged_at).map(x => x.path); for (let i = 0; i < ps.length; i += 100) await db.storage.from(VBUCKET).remove(ps.slice(i, i + 100)); await db.from("formation_vid").delete().eq("num", s.num); } catch (e) { /* ignoré */ } must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
-    must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: label, statut: s.status, partner: p ? p.name : "Direct", how: "Supprimé immédiatement par l'administrateur (" + acc + ")" }));
+    await wipeStudent(s, p ? p.name : "Direct", "Supprimé immédiatement par l'administrateur (" + acc + ")");
     return { ok: true };
   },
   // ===== 2) confirmation de l'inscription par téléphone : Oui / Non =====
@@ -618,7 +640,7 @@ const A = {
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], purged: 0 } : await vidsFor(s.num, n); return { vids: V.list, vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], purged: 0 } : await vidsFor(s.num, n); return { view: dayAcc(n, fx, pm) === "view", vids: V.list, vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
   },
   // ---------- Formation : vidéos et images des cours (administrateur, droit « cours et notes ») ----------
   async fMediaList(d) {
@@ -657,11 +679,10 @@ const A = {
   // ---------- Remises : vidéos envoyées par l'étudiant (envoi direct vers le stockage privé) ----------
   async fVidInit(d, c) { // étape 1 : contrôle les droits et les limites, réserve l'emplacement, donne l'adresse d'envoi signée
     const { s, fx, pm, ro } = await fctx(d, c, "fvi", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
-    const n = needDay(d, fx, pm), p = pm[n]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
+    const n = needDay(d, fx, pm, true), p = pm[n]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
     const pr = await db.from("formation_vid").select("id").limit(1); if (pr.error) throw E("L'envoi de vidéos n'est pas encore activé. Prévenez votre formateur.", 503);
-    const nm = String(d.name || "").slice(0, 120), ext = (nm.split(".").pop() || "").toLowerCase(); let mt = String(d.mime || "").toLowerCase().slice(0, 100);
-    const okExt = VEXTS.has(ext), okMime = /^video\/[\w.+-]+$/.test(mt); if (!okExt && !okMime) throw E("Ce fichier n'est pas une vidéo. Choisissez un fichier vidéo (MP4, MOV, AVI, MKV, WebM, 3GP…).");
-    const x = /^[a-z0-9]{2,5}$/.test(ext) ? ext : ((mt.split("/")[1] || "").replace(/^x-/, "").replace(/[^a-z0-9]/g, "").slice(0, 5) || "mp4"); if (!okMime) mt = VEXT[x] || "video/" + x;
+    const nm = String(d.name || "").slice(0, 120), k = vKind(nm, d.mime); if (!k) throw E("Ce fichier n'est pas une vidéo. Choisissez un fichier vidéo (MP4, MOV, WebM, AVI, MKV, 3GP…).");
+    const x = k.x, mt = k.mt;
     const size = Math.round(+d.size); if (!(size > 0 && size <= VMAX)) throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum). Filmez plus court ou réduisez la qualité.");
     const old = must(await db.from("formation_vid").select("id,path").eq("num", s.num).eq("ready", false).lt("at", Date.now() - 3600e3)); // envois abandonnés
     if (old.length) { await db.storage.from(VBUCKET).remove(old.map(o => o.path)); must(await db.from("formation_vid").delete().in("id", old.map(o => o.id))); }
@@ -730,16 +751,16 @@ const A = {
     return { ok: true, dry: false, ...out };
   },
   async fSave(d, c) {
-    const { s, fx, pm, ro } = await fctx(d, c, "fv", 900); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm), p = pm[n];
+    const { s, fx, pm, ro } = await fctx(d, c, "fv", 900); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm, true), p = pm[n];
     if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
     must(await db.from("formation_prog").upsert({ num: s.num, day: n, data: cleanData(d.data || {}) })); return { ok: true };
   },
   async fCheck(d, c) {
-    const { fx, pm } = await fctx(d, c, "fk"), n = needDay(d, fx, pm), Q = quizOf(n); if (!Q) throw E("Pas de questions ce jour-là.");
+    const { fx, pm } = await fctx(d, c, "fk"), n = needDay(d, fx, pm, true), Q = quizOf(n); if (!Q) throw E("Pas de questions ce jour-là.");
     const sc = qscore(n, cleanData({ qa: d.qa }).qa); return { ok: sc.ok, ex: Q.map(qexp), s: sc.s, t: sc.t, v: sc.v };
   },
   async fSubmit(d, c) {
-    const { s, fx, pm, ro } = await fctx(d, c, "fu"); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm), p = pm[n];
+    const { s, fx, pm, ro } = await fctx(d, c, "fu"); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm, true), p = pm[n];
     if (p && p.sub && p.grade == null) throw E("Votre travail est déjà en attente de correction.", 409);
     if (passedRow(p)) throw E("Ce jour est déjà validé.", 409);
     const r = must(await db.from("formation_prog").select("data").eq("num", s.num).eq("day", n).maybeSingle()), dt = (r && r.data) || {}, code = n >= 16 && n <= 29;
