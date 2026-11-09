@@ -32,9 +32,11 @@ Avant l'étape 1, le site continue de fonctionner comme avant (l'inscription cla
 - Le texte « Début de la formation : 01 novembre 2026 » du motif de paiement de la création est inchangé.
 - Pour lire les cours et notes de l'informatique côté administrateur, sélectionnez une promotion informatique dans le sélecteur de promotion.
 
-## Nouveau cours d'informatique (30 jours)
-- **Jours 1–6** : allumer l'ordinateur, bureau et icônes, barre des tâches/Démarrer/fenêtres, souris et clavier, fichiers et clé USB, Internet/e-mail/sécurité. **Jours 7–13** Word, **14–23** Excel, **24–30** PowerPoint, projet intégré et évaluation.
-- Chaque jour : 20 questions théoriques (QCM, vrai/faux, réponse courte), plusieurs parties illustrées (26 schémas intégrés), exercice précis, grille de notation pour le correcteur.
+## Nouveau cours d'informatique professionnelle (60 jours, 8 modules)
+- **Module 1 (jours 1–10)** Fondations : allumer l'ordinateur, bureau et icônes, fenêtres, souris/clavier, fichiers, Internet/sécurité, paramètres Windows, matériel, logiciels et formats, outils Windows + projet.
+- **Module 2 (11–18)** Word · **Module 3 (19–24)** Excel · **Module 4 (25–34)** Excel données, analyse, gestion + projet · **Module 5 (35–40)** PowerPoint + projet · **Module 6 (41–43)** messagerie pro, cloud, bureautique en ligne · **Module 7 (44–50)** réseaux, sécurité, maintenance, dépannage, installation de Windows · **Module 8 (51–60)** bases de données, algorithmique, web (HTML/CSS), IA au bureau, gestion de projet, communication et éthique, emploi, projet intégré, soutenance, évaluation finale.
+- Chaque jour : 20 questions théoriques (QCM, vrai/faux, réponse courte), 5 à 7 parties détaillées et illustrées (86 schémas intégrés), exercice précis, grille de notation pour le correcteur.
+- La durée est propre à chaque formation : 60 jours pour l'informatique, 30 pour la création. Les tarifs (jours gratuits, jours de la 1re tranche) se règlent par promotion dans l'administration : vérifiez-les pour vos promotions d'informatique, car le parcours est passé de 30 à 60 jours. Les étudiants d'informatique déjà inscrits retrouvent le nouveau programme (la numérotation des jours a changé).
 - **Remise des travaux** : zone « Remise de mon travail pratique » (Word, Excel, PowerPoint, PDF, texte, CSV, ZIP ; 6 fichiers de 15 Mo max par jour) + zone d'images.
 - **Audios de l'enseignant** : en administration, dans « Audios, vidéos et images du cours », ajoutez des fichiers mp3, m4a, aac, wav, ogg (500 Mo max). Les étudiants les écoutent dans le cours du jour.
 - Aucun nouveau SQL : les fichiers déposés utilisent le bucket existant `formation-media` (préfixe `docs/`).
