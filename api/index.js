@@ -263,7 +263,7 @@ const recOut = r => r ? { ...(r.data || {}), sub: Number(r.sub || 0), grade: r.g
 // Les fichiers sont dans un bucket PRIVÉ : aucune adresse publique. L'étudiant reçoit uniquement des liens signés qui expirent (2 h),
 // et seulement pour les médias que l'administrateur a rendus visibles (pour tous ou pour des étudiants précis).
 const MBUCKET = "formation-media", MTTL = 7200, MMAX = 500 * 1024 * 1024;
-const MMIME = { "video/mp4": ["video", "mp4"], "video/webm": ["video", "webm"], "video/quicktime": ["video", "mov"], "image/jpeg": ["image", "jpg"], "image/png": ["image", "png"], "image/webp": ["image", "webp"], "image/gif": ["image", "gif"] };
+const MMIME = { "video/mp4": ["video", "mp4"], "video/webm": ["video", "webm"], "video/quicktime": ["video", "mov"], "audio/mpeg": ["audio", "mp3"], "audio/mp3": ["audio", "mp3"], "audio/mp4": ["audio", "m4a"], "audio/x-m4a": ["audio", "m4a"], "audio/m4a": ["audio", "m4a"], "audio/aac": ["audio", "aac"], "audio/wav": ["audio", "wav"], "audio/x-wav": ["audio", "wav"], "audio/ogg": ["audio", "ogg"], "audio/webm": ["audio", "weba"], "image/jpeg": ["image", "jpg"], "image/png": ["image", "png"], "image/webp": ["image", "webp"], "image/gif": ["image", "gif"] };
 const mNums = v => [...new Set((Array.isArray(v) ? v : String(v || "").split(/[\s,;]+/)).map(x => String(x || "").trim().toUpperCase().slice(0, 30)).filter(Boolean))].slice(0, 500);
 const mSigned = async rows => { const out = {}; if (!rows.length) return out; const r = await db.storage.from(MBUCKET).createSignedUrls(rows.map(x => x.path), MTTL); (r.data || []).forEach(x => { if (x && x.signedUrl) out[x.path] = x.signedUrl; }); return out; };
 const mAdminOut = (x, url) => ({ id: x.id, day: Number(x.day), kind: x.kind, title: x.title || "", vis: x.vis || "off", nums: Array.isArray(x.nums) ? x.nums : [], ready: !!x.ready, size: Number(x.size || 0), url: url || "" });
@@ -285,24 +285,31 @@ const VBUCKET = "formation-subs", VMAX = 15 * 1024 * 1024, VMAXN = 8;
 const VEXTS = ["mp4", "m4v", "mov", "qt", "webm", "mkv", "avi", "wmv", "asf", "flv", "f4v", "3gp", "3g2", "mpg", "mpeg", "mpe", "ogv", "ogg", "ts", "mts", "m2ts", "mxf", "vob", "divx", "hevc", "h264", "rm", "rmvb"], VMT = { mov: "video/quicktime", qt: "video/quicktime", mkv: "video/x-matroska", avi: "video/x-msvideo", wmv: "video/x-ms-wmv", asf: "video/x-ms-asf", flv: "video/x-flv", "3gp": "video/3gpp", "3g2": "video/3gpp2", m4v: "video/x-m4v", mpg: "video/mpeg", mpeg: "video/mpeg", mpe: "video/mpeg", ogv: "video/ogg", ogg: "video/ogg", ts: "video/mp2t", mts: "video/mp2t", m2ts: "video/mp2t" };
 const vKind = (name, mime) => { const ext = (String(name || "").split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, ""), mt = String(mime || "").toLowerCase().split(";")[0].trim(), isMt = mt.startsWith("video/");
   if (!isMt && !VEXTS.includes(ext)) return null; const sub = isMt ? mt.slice(6).replace(/^x-/, "").replace(/[^a-z0-9]/g, "").slice(0, 8) : "", x = VEXTS.includes(ext) ? ext : (sub || "mp4"); return { x, mt: isMt ? mt : (VMT[x] || "video/" + x) }; };
+// Fichiers de travail des étudiants (documents) : même table que les vidéos, rangés sous « docs/ » dans le bucket privé des médias
+const DOCX_ = { docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", doc: "application/msword", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12", xls: "application/vnd.ms-excel", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", ppt: "application/vnd.ms-powerpoint", pdf: "application/pdf", odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet", odp: "application/vnd.oasis.opendocument.presentation", txt: "text/plain", csv: "text/csv", rtf: "application/rtf", zip: "application/zip" }, DMAX = 15 * 1024 * 1024, DMAXN = 6;
+const extOf = n => (String(n || "").split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const isDocName = n => Object.prototype.hasOwnProperty.call(DOCX_, extOf(n));
+const bkt = x => String(x && x.path || "").startsWith("docs/") ? MBUCKET : VBUCKET;
 const safeNum = n => String(n || "").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
 const vName = x => String(x.name || "video").replace(/[^\w.\- ()]/g, "_").slice(0, 80);
 const vidOut = (x, u) => ({ id: x.id, day: Number(x.day), name: x.name || "video", size: Number(x.size || 0), at: Number(x.at || 0), url: u || "", dl: u ? u + (u.includes("?") ? "&" : "?") + "download=" + encodeURIComponent(vName(x)) : "" });
 // Vidéos d'un étudiant (un jour précis ou tous) avec liens signés. Ne bloque jamais : si la table n'existe pas encore, renvoie une liste vide.
+const vidDocs = async (num, n) => { const V = await vidsFor(num, n); return { vids: V.list, docs: V.docs }; };
 const vidsFor = async (num, day) => {
   try {
     let q = db.from("formation_vid").select("*").eq("num", String(num || "")).eq("ready", true); if (day != null) q = q.eq("day", day);
-    const r = await q.order("at", { ascending: true }); if (r.error) return { list: [], purged: 0 };
+    const r = await q.order("at", { ascending: true }); if (r.error) return { list: [], docs: [], purged: 0 };
     const rows = r.data || [], live = rows.filter(x => !x.purged_at && x.path), u = {};
-    if (live.length) { const g = await db.storage.from(VBUCKET).createSignedUrls(live.map(x => x.path), MTTL); (g.data || []).forEach(x => { if (x && x.signedUrl && x.path) u[x.path] = x.signedUrl; }); }
-    return { list: live.filter(x => u[x.path]).map(x => vidOut(x, u[x.path])), purged: rows.length - live.length };
-  } catch (e) { return { list: [], purged: 0 }; }
+    for (const B of [VBUCKET, MBUCKET]) { const part = live.filter(x => bkt(x) === B); if (part.length) { const g = await db.storage.from(B).createSignedUrls(part.map(x => x.path), MTTL); (g.data || []).forEach(x => { if (x && x.signedUrl && x.path) u[x.path] = x.signedUrl; }); } }
+    const all = live.filter(x => u[x.path]).map(x => ({ ...vidOut(x, u[x.path]), doc: isDocName(x.name) }));
+    return { list: all.filter(x => !x.doc), docs: all.filter(x => x.doc), purged: rows.length - live.length };
+  } catch (e) { return { list: [], docs: [], purged: 0 }; }
 };
 
 // Supprime un étudiant et tout ce qui lui est rattaché (paiements, progression, vidéos, accès…), puis l'inscrit dans le journal.
 const wipeStudent = async (s, pname, how) => {
   must(await db.from("payments").delete().eq("num", s.num)); must(await db.from("formation_prog").delete().eq("num", s.num)); must(await db.from("formation_free").delete().eq("num", s.num)); must(await db.from("formation_access").delete().eq("num", s.num)); await db.from("formation_skip").delete().eq("num", s.num);
-  try { const vr = await db.from("formation_vid").select("path,purged_at").eq("num", s.num), ps = (vr.data || []).filter(x => !x.purged_at).map(x => x.path); for (let i = 0; i < ps.length; i += 100) await db.storage.from(VBUCKET).remove(ps.slice(i, i + 100)); await db.from("formation_vid").delete().eq("num", s.num); } catch (e) { /* ignoré */ }
+  try { const vr = await db.from("formation_vid").select("path,purged_at").eq("num", s.num); for (const B of [VBUCKET, MBUCKET]) { const ps = (vr.data || []).filter(x => !x.purged_at && bkt(x) === B).map(x => x.path); for (let i = 0; i < ps.length; i += 100) await db.storage.from(B).remove(ps.slice(i, i + 100)); } await db.from("formation_vid").delete().eq("num", s.num); } catch (e) { /* ignoré */ }
   must(await db.from("dreq").delete().eq("num", s.num)); must(await db.from("students").delete().eq("num", s.num));
   must(await db.from("log").insert({ date: Date.now(), num: s.num, nom: s.nom + " " + s.prenoms, statut: s.status, partner: pname, how }));
 };
@@ -706,7 +713,7 @@ const A = {
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], purged: 0 } : await vidsFor(s.num, n); return { form: curT().formation, mod: fx.mod ? { from: fx.mod.from, to: fx.mod.to } : null, view: dayAcc(n, fx, pm) === "view", vids: V.list, vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], docs: [], purged: 0 } : await vidsFor(s.num, n); return { form: curT().formation, mod: fx.mod ? { from: fx.mod.from, to: fx.mod.to } : null, view: dayAcc(n, fx, pm) === "view", vids: V.list, docs: V.docs || [], vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
   },
   // ---------- Formation : vidéos et images des cours (administrateur, droit « cours et notes ») ----------
   async fMediaList(d) {
@@ -716,7 +723,7 @@ const A = {
   async fMediaInit(d) { // étape 1 : réserve l'emplacement et donne une adresse d'envoi signée (le fichier ne passe pas par le serveur)
     check(d.token, "a"); const day = Math.round(+d.day), mt = String(d.mime || "").toLowerCase(), M = MMIME[mt], size = Math.round(+d.size);
     if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
-    if (!M) throw E("Format non accepté. Vidéo : MP4, WebM ou MOV. Image : JPG, PNG, WEBP ou GIF.");
+    if (!M) throw E("Format non accepté. Audio : MP3, M4A, WAV, OGG ou AAC. Vidéo : MP4, WebM ou MOV. Image : JPG, PNG, WEBP ou GIF.");
     if (!(size > 0 && size <= MMAX)) throw E("Fichier trop gros (" + Math.round(MMAX / 1048576) + " Mo maximum).");
     const id = rnd(12), path = id + "." + M[1], title = String(d.title || "").trim().slice(0, 120);
     const r = await db.storage.from(MBUCKET).createSignedUploadUrl(path); if (r.error || !r.data) throw E("Stockage indisponible : le bucket « " + MBUCKET + " » existe-t-il ? (voir supabase_formation.sql)", 500);
@@ -747,33 +754,33 @@ const A = {
     const { s, fx, pm, ro } = await fctx(d, c, "fvi", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
     const n = needDay(d, fx, pm, true), p = pm[n]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
     const pr = await db.from("formation_vid").select("id").limit(1); if (pr.error) throw E("L'envoi de vidéos n'est pas encore activé. Prévenez votre formateur.", 503);
-    const nm = String(d.name || "").slice(0, 120), k = vKind(nm, d.mime); if (!k) throw E("Ce fichier n'est pas une vidéo. Choisissez un fichier vidéo (MP4, MOV, WebM, AVI, MKV, 3GP…).");
+    const nm = String(d.name || "").slice(0, 120), isD = d.kind === "doc", k = isD ? (isDocName(nm) ? { x: extOf(nm), mt: DOCX_[extOf(nm)] } : null) : vKind(nm, d.mime); if (!k) throw E(isD ? "Format non accepté. Envoyez un fichier Word, Excel, PowerPoint, PDF, texte ou ZIP (.docx, .xlsx, .pptx, .pdf, .txt, .csv, .zip…)." : "Ce fichier n'est pas une vidéo. Choisissez un fichier vidéo (MP4, MOV, WebM, AVI, MKV, 3GP…).");
     const x = k.x, mt = k.mt;
-    const size = Math.round(+d.size); if (!(size > 0 && size <= VMAX)) throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum). Filmez plus court ou réduisez la qualité.");
+    const size = Math.round(+d.size); if (!(size > 0 && size <= (isD ? DMAX : VMAX))) throw E(isD ? "Fichier trop lourd (" + Math.round(DMAX / 1048576) + " Mo maximum). Réduisez les images du document puis réessayez." : "Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum). Filmez plus court ou réduisez la qualité.");
     const old = must(await db.from("formation_vid").select("id,path").eq("num", s.num).eq("ready", false).lt("at", Date.now() - 3600e3)); // envois abandonnés
-    if (old.length) { await db.storage.from(VBUCKET).remove(old.map(o => o.path)); must(await db.from("formation_vid").delete().in("id", old.map(o => o.id))); }
-    const have = must(await db.from("formation_vid").select("id,purged_at").eq("num", s.num).eq("day", n)).filter(v => !v.purged_at);
-    if (have.length >= VMAXN) throw E("Maximum " + VMAXN + " vidéos par jour. Retirez-en une pour en ajouter une autre.");
-    const id = rnd(12), path = safeNum(s.num) + "/" + n + "/" + id + "." + x, up = await db.storage.from(VBUCKET).createSignedUploadUrl(path);
-    if (up.error || !up.data) throw E("Stockage des vidéos indisponible. Prévenez votre formateur.", 503);
-    must(await db.from("formation_vid").insert({ id, num: s.num, day: n, path, name: nm || "video." + x, mime: mt, size, ready: false, at: Date.now() }));
+    if (old.length) { for (const B of [VBUCKET, MBUCKET]) { const op = old.filter(o => bkt(o) === B).map(o => o.path); if (op.length) await db.storage.from(B).remove(op); } must(await db.from("formation_vid").delete().in("id", old.map(o => o.id))); }
+    const have = must(await db.from("formation_vid").select("id,name,purged_at").eq("num", s.num).eq("day", n)).filter(v => !v.purged_at && isDocName(v.name) === isD);
+    if (have.length >= (isD ? DMAXN : VMAXN)) throw E(isD ? "Maximum " + DMAXN + " fichiers par jour. Retirez-en un pour en ajouter un autre." : "Maximum " + VMAXN + " vidéos par jour. Retirez-en une pour en ajouter une autre.");
+    const id = rnd(12), path = (isD ? "docs/" : "") + safeNum(s.num) + "/" + n + "/" + id + "." + x, up = await db.storage.from(isD ? MBUCKET : VBUCKET).createSignedUploadUrl(path);
+    if (up.error || !up.data) throw E("Stockage indisponible. Prévenez votre formateur.", 503);
+    must(await db.from("formation_vid").insert({ id, num: s.num, day: n, path, name: nm || (isD ? "document." : "video.") + x, mime: mt, size, ready: false, at: Date.now() }));
     return { id, url: up.data.signedUrl };
   },
   async fVidDone(d, c) { // étape 2 : vérifie que la vidéo est bien arrivée (et sa vraie taille), puis la déclare prête
     const { s, ro } = await fctx(d, c, "fvd", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
     const id = String(d.vid || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
-    const i = x.path.lastIndexOf("/"), l = await db.storage.from(VBUCKET).list(x.path.slice(0, i), { search: x.path.slice(i + 1), limit: 5 }), o = (l.data || []).find(z => z.name === x.path.slice(i + 1));
+    const i = x.path.lastIndexOf("/"), l = await db.storage.from(bkt(x)).list(x.path.slice(0, i), { search: x.path.slice(i + 1), limit: 5 }), o = (l.data || []).find(z => z.name === x.path.slice(i + 1));
     if (!o) { must(await db.from("formation_vid").delete().eq("id", id)); throw E("La vidéo n'est pas arrivée complète. Réessayez l'envoi."); }
     const size = Number(o.metadata && o.metadata.size) || Number(x.size) || 0;
-    if (size > VMAX) { await db.storage.from(VBUCKET).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum)."); }
+    if (size > (isDocName(x.name) ? DMAX : VMAX)) { await db.storage.from(bkt(x)).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); throw E("Vidéo trop lourde (" + Math.round(VMAX / 1048576) + " Mo maximum)."); }
     must(await db.from("formation_vid").update({ ready: true, size, at: Date.now() }).eq("id", id));
-    const v = await vidsFor(s.num, x.day); return { ok: true, vid: v.list.find(z => z.id === id) || null };
+    const v = await vidsFor(s.num, x.day); return { ok: true, vid: [...v.list, ...v.docs].find(z => z.id === id) || null };
   },
   async fVidDel(d, c) { // l'étudiant retire sa vidéo (tant que le travail n'est pas verrouillé)
     const { s, pm, ro } = await fctx(d, c, "fvx", 200); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403);
     const id = String(d.vid || "").slice(0, 20), x = must(await db.from("formation_vid").select("*").eq("id", id).eq("num", s.num).maybeSingle()); if (!x) throw E("Vidéo introuvable.", 404);
     const p = pm[x.day]; if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé : la vidéo ne peut plus être retirée.", 409);
-    if (x.path && !x.purged_at) await db.storage.from(VBUCKET).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); return { ok: true };
+    if (x.path && !x.purged_at) await db.storage.from(bkt(x)).remove([x.path]); must(await db.from("formation_vid").delete().eq("id", id)); return { ok: true };
   },
   // ---------- Remises : bibliothèque de tout ce que les étudiants ont envoyé (administrateur, droit « corriger les travaux ») ----------
   async fLib(d, ctx) { // liste légère : jamais les images elles-mêmes, seulement des compteurs et des tailles
@@ -808,7 +815,7 @@ const A = {
     let nums = null; if (d.num) nums = [String(d.num).toUpperCase().slice(0, 30)]; else if (d.cohort_only) { const cid = Math.round(+d.cohort) || 1; nums = must(await studentsC("num")).filter(x => (Number(x.cohort) || 1) === cid).map(x => x.num); if (!nums.length) nums = ["-"]; }
     const ok = (r, atK) => (!nums || nums.includes(r.num)) && (day == null || Number(r.day) === day) && (before == null || Number(r[atK] || 0) < before);
     const out = { videos: { n: 0, bytes: 0 }, images: { n: 0, rows: 0, bytes: 0 } }; let vrows = [];
-    if (kind !== "images") { const r = await db.from("formation_vid").select("*"); if (!r.error) { vrows = (r.data || []).filter(x => x.ready && !x.purged_at && ok(x, "at")); out.videos = { n: vrows.length, bytes: vrows.reduce((t, x) => t + Number(x.size || 0), 0) }; } }
+    if (kind !== "images") { const r = await db.from("formation_vid").select("*"); if (!r.error) { vrows = (r.data || []).filter(x => x.ready && !x.purged_at && !isDocName(x.name) && ok(x, "at")); out.videos = { n: vrows.length, bytes: vrows.reduce((t, x) => t + Number(x.size || 0), 0) }; } }
     if (kind !== "videos") { const r = await db.from("formation_lib_v").select("*"); if (r.error) throw E("Exécutez d'abord le fichier supabase_remises.sql dans Supabase."); const rows = (r.data || []).filter(x => Number(x.n_img) > 0 && ok(x, "sub")); out.images = { n: rows.reduce((t, x) => t + Number(x.n_img), 0), rows: rows.length, bytes: rows.reduce((t, x) => t + Number(x.img_bytes || 0), 0) }; }
     if (!d.run) return { ok: true, dry: true, ...out };
     if (String(d.confirm || "") !== "VIDER") throw E("Tapez VIDER pour confirmer.");
@@ -829,9 +836,9 @@ const A = {
     const { s, fx, pm, ro } = await fctx(d, c, "fu"); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm, true), p = pm[n];
     if (p && p.sub && p.grade == null) throw E("Votre travail est déjà en attente de correction.", 409);
     if (passedRow(p)) throw E("Ce jour est déjà validé.", 409);
-    const r = must(await db.from("formation_prog").select("data").eq("num", s.num).eq("day", n).maybeSingle()), dt = (r && r.data) || {}, code = n >= 16 && n <= 29;
+    const r = must(await db.from("formation_prog").select("data").eq("num", s.num).eq("day", n).maybeSingle()), dt = (r && r.data) || {}, code = curT().formation === "creation" && n >= 16 && n <= 29;
     if (code && Object.values(dt.files || {}).reduce((t, x) => t + String(x).trim().length, 0) < 20) throw E("Écrivez d'abord votre code dans l'éditeur.");
-    if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot && !(dt.shots && dt.shots.length) && !(await vidsFor(s.num, n)).list.length) throw E("Ajoutez un lien, une description, une image ou une vidéo de votre travail.");
+    if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot && !(dt.shots && dt.shots.length) && !(await vidsFor(s.num, n)).list.length && !(await vidsFor(s.num, n)).docs.length) throw E("Ajoutez un fichier, un lien, une description, une image ou une vidéo de votre travail.");
     const Q = quizOf(n), qa = dt.qa || {}; if (Q && Q.some((q, i) => qa[i] == null || qa[i] === "")) throw E("Répondez d'abord à toutes les questions théoriques.");
     const sc = qscore(n, qa);
     must(await db.from("formation_prog").upsert({ num: s.num, day: n, sub: Date.now(), grade: null, gp: null, gt: sc ? sc.v : null, comment: "", att: (p && p.att || 0) + 1 })); return { ok: true };
@@ -851,7 +858,7 @@ const A = {
     const r = must(await db.from("formation_prog").select("*").eq("num", num).eq("day", n).maybeSingle()), s = must(await db.from("students").select("nom,prenoms").eq("num", num).maybeSingle());
     if (!x || !r || !r.sub) throw E("Remise introuvable.", 404);
     const dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, ex = (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i;
-    const V = await vidsFor(num, n); return { vids: V.list, vidsPurged: V.purged, name: s && hasP(c, "students") ? s.nom + " " + s.prenoms : num, n, title: x.title, exercise: ex, data: dt, sub: Number(r.sub), att: r.att || 0, gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), grade: r.grade == null ? null : Number(r.grade), comment: r.comment || "", gat: r.gat ? Number(r.gat) : 0,
+    const V = await vidsFor(num, n); return { vids: V.list, docs: V.docs, vidsPurged: V.purged, name: s && hasP(c, "students") ? s.nom + " " + s.prenoms : num, n, title: x.title, exercise: ex, data: dt, sub: Number(r.sub), att: r.att || 0, gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), grade: r.grade == null ? null : Number(r.grade), comment: r.comment || "", gat: r.gat ? Number(r.gat) : 0,
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i] })) } : null };
   },
   async fGrade(d) {
@@ -880,7 +887,7 @@ const A = {
     const R = await rankInfo(await cohortOf(s.num)), dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, tc = CT.teach[n] || {}, good = q => q[0] === "qcm" ? q[2][q[3]] : q[0] === "vf" ? (q[2] ? "Vrai" : "Faux") : q[2][0];
     return { rk: R.dayRank(n, r.grade), dayAvg: R.dayAvg[n] != null ? R.dayAvg[n] : null, n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
       sub: Number(r.sub || 0), gat: Number(r.gat || 0), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), grade: Number(r.grade), comment: r.comment || "", att: r.att || 0,
-      vids: (await vidsFor(s.num, n)).list, data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []), steps: dt.steps || [], ex: dt.ex || [] },
+      ...(await vidDocs(s.num, n)), data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []), steps: dt.steps || [], ex: dt.ex || [] },
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i], good: good(q), ex: qexp(q) })) } : null };
   },
   // ---------- Formation : accès offerts (confidentiel, administrateur uniquement) ----------
