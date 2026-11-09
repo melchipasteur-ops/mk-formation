@@ -67,3 +67,10 @@ Avant l'étape 1, le site continue de fonctionner comme avant (l'inscription cla
 - **Recherche globale** « 🔎 Aller à un étudiant » sous le menu, sur toutes les pages d'administration (nom, numéro ou téléphone ; Entrée ouvre le premier résultat).
 - Les noms d'étudiants sont cliquables partout (listes, paiements, activité récente). Dans l'administration de la formation : bouton « ⚙️ Fiche » dans la liste et dans la vue d'un étudiant.
 - Fichiers modifiés : `index.html`, `formation.html`. Aucun SQL.
+
+## Informatique à la carte (modules M1 à M8)
+- L'étudiant choisit ses modules à l'inscription (l'administrateur peut toujours les modifier : Gérer → Parcours → « modules au choix »). Ses jours sont recomptés à partir de 1 (bulletin, fiches, navigation).
+- Tarif : 1 module 7 000 · 2 modules 12 000 · 3 modules 15 000 · 4 à 7 modules 16 000 à 19 000 (à confirmer) · 8 modules = formation complète au tarif de la promotion. Attestation : 2 000 FCFA incluse.
+- Réglable sans code via la variable Vercel `PRIX_INFO_MODULES` (ex. `{"4":17000}`).
+- Aucune migration SQL : la colonne `students.module` stocke par exemple `m1,m3`.
+- Reçu : après paiement, seul le lien du forum VIP est affiché.

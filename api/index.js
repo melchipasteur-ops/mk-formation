@@ -113,19 +113,28 @@ const MODS = { video: { from: 1, to: 14, label: "Création de vidéos avec l'IA"
 const MOD_TOTAL = +process.env.PRIX_MODULE_TOTAL || 7000, MOD_FORM = +process.env.PRIX_MODULE_FORMATION || 5000; // 7 000 = 5 000 (formation) + 2 000 (attestation)
 const FORMS_PUB = Object.fromEntries(Object.entries(FORMS).map(([k, v]) => [k, { label: v.label, short: v.short, modules: k === "creation" }]));
 const MODS_PUB = Object.fromEntries(Object.entries(MODS).map(([k, v]) => [k, { label: v.label, from: v.from, to: v.to, days: v.to - v.from + 1 }]));
+// Informatique : modules « à la carte » (M1…M8) lus dans le programme ; l'étudiant en choisit un ou plusieurs, ses jours sont recomptés à partir de 1.
+const IM = {}; CTS.informatique.course.forEach(x => { const k = "m" + ((String(x.week).match(/\d+/) || ["0"])[0]), o = IM[k] || (IM[k] = { key: k, from: x.n, to: x.n, label: String(x.meta || "").split("—").slice(1).join("—").trim() || String(x.week) }); o.to = x.n; });
+const IM_KEYS = Object.keys(IM).sort((a, b) => +a.slice(1) - +b.slice(1)), INFO_ATT = MOD_TOTAL - MOD_FORM;
+const INFO_PRICES = (() => { const t = { 1: 7000, 2: 12000, 3: 15000, 4: 16000, 5: 17000, 6: 18000, 7: 19000, 8: 20000 }; try { Object.assign(t, JSON.parse(process.env.PRIX_INFO_MODULES || "{}")); } catch (e) { /* défauts */ } return t; })();
+const infoKeys = m => { const a = [...new Set(String(m || "").split(",").map(x => x.trim()).filter(x => IM[x]))]; return a.sort((x, y) => +x.slice(1) - +y.slice(1)); };
+const IM_PUB = Object.fromEntries(IM_KEYS.map(k => [k, { label: IM[k].label, from: IM[k].from, to: IM[k].to, days: IM[k].to - IM[k].from + 1 }]));
 const FLEN = { creation: 30, informatique: 60 }; // nombre de jours de chaque formation
 const DEF_TRACK = { formation: "creation", module: null };
-const cleanTrack = (f, m) => { const formation = FORMS[f] ? f : "creation", module = formation === "creation" && MODS[m] ? m : null; return { formation, module }; };
+const cleanTrack = (f, m) => { const formation = FORMS[f] ? f : "creation"; let module = null; if (formation === "creation") module = MODS[m] ? m : null; else if (formation === "informatique") { const k = infoKeys(m); module = k.length && k.length < IM_KEYS.length ? k.join(",") : null; } return { formation, module }; };
+const _md = {}; // jours (numéros réels du cours) d'un module : liste triée, jamais vide quand T.module existe
+const modDays = T => { if (!T || !T.module) return null; const key = T.formation + ":" + T.module; if (_md[key]) return _md[key]; const o = []; if (T.formation === "creation") { for (let d = MODS[T.module].from; d <= MODS[T.module].to; d++) o.push(d); } else infoKeys(T.module).forEach(k => { for (let d = IM[k].from; d <= IM[k].to; d++) o.push(d); }); return (_md[key] = { list: o, set: new Set(o) }); };
 const curT = () => (als.getStore() || {}).T || DEF_TRACK;
-const inMod = (n, T) => !T || !T.module || (n >= MODS[T.module].from && n <= MODS[T.module].to);
+const inMod = (n, T) => !T || !T.module || modDays(T).set.has(n);
 const courseOf = T => CTS[(T || DEF_TRACK).formation].course.filter(x => inMod(x.n, T));
 const NK = () => FORMS[curT().formation].key; // décalage des clés « jour » des notes et médias de l'administrateur (évite le mélange entre formations)
 const CT = { get course() { return courseOf(curT()); }, get lessons() { return CTS[curT().formation].lessons; }, get teach() { return CTS[curT().formation].teach; }, get sites() { return CTS[curT().formation].sites || {}; } };
 const trackOf = async num => { try { const r = await db.from("students").select("formation,module").eq("num", String(num || "")).maybeSingle(); if (r.error || !r.data) return DEF_TRACK; return cleanTrack(r.data.formation, r.data.module); } catch (e) { return DEF_TRACK; } };
 const trackMap = async () => { const m = {}; try { const r = await db.from("students").select("num,formation,module"); if (r.error) return m; (r.data || []).forEach(x => { m[x.num] = cleanTrack(x.formation, x.module); }); } catch (e) { /* colonnes pas encore créées */ } return m; };
-const trackPub = T => ({ form: T.formation, module: T.module, formLabel: FORMS[T.formation].label, modLabel: T.module ? MODS[T.module].label : "" });
+const modLabel = T => !T || !T.module ? "" : T.formation === "creation" ? MODS[T.module].label : infoKeys(T.module).map(k => "M" + k.slice(1) + " · " + IM[k].label).join(" + ");
+const trackPub = T => ({ form: T.formation, module: T.module, formLabel: FORMS[T.formation].label, modLabel: modLabel(T) });
 // Tarif d'un module : 7 000 FCFA au total = 5 000 de formation (1re tranche, couvre tous les jours du module) + 2 000 d'attestation (solde)
-const modPr = (P, T) => T && T.module ? { ...P, total: MOD_TOTAL, t1: MOD_FORM, t1days: MODS[T.module].to - MODS[T.module].from + 1, att: MOD_TOTAL - MOD_FORM, mod: true } : P;
+const modPr = (P, T) => { if (!T || !T.module) return P; const L = modDays(T).list.length; if (T.formation === "informatique") { const k = infoKeys(T.module).length, tot = Number(INFO_PRICES[k]) || MOD_TOTAL * k; return { ...P, total: tot, t1: tot - INFO_ATT, t1days: L, att: INFO_ATT, mod: true }; } return { ...P, total: MOD_TOTAL, t1: MOD_FORM, t1days: L, att: MOD_TOTAL - MOD_FORM, mod: true }; };
 const T1 = +process.env.PRIX_TRANCHE1 || 7000, FREE_DAYS = 2, T1_DAYS = 10, PASSM = 14, WT = 0.3;
 const dayDef = n => CT.course.find(x => x.n === n);
 const quizOf = n => (CT.lessons[n] || {}).quiz || null;
@@ -196,10 +205,10 @@ const fInfoBase = (paid, pend, c, gift, ov, off = 0, sk = 0) => { const P = c.pr
 // Module : les jours du module sont comptés à partir de 1 (jour 1 du module), puis ramenés aux numéros réels du cours (ex. module web = jours 15 à 29).
 const fInfo = (paid, pend, c, gift, ov, off = 0, sk = 0, T = null) => {
   if (!T || !T.module) return { ...fInfoBase(paid, pend, c, gift, ov, off, sk), formation: T ? T.formation : curT().formation, module: null };
-  const M = MODS[T.module], o = M.from - 1, L = M.to - o, P = modPr(c.pr || pricingOf(null), T), skO = sk && typeof sk === "object" ? sk : { upto: Number(sk) || 0, mode: "free" };
-  const rel = x => Math.max(0, Math.min(L, (Number(x) || 0) - o)), ab = v => v > 0 ? v + o : 0;
+  const D = modDays(T).list, L = D.length, o = D[0] - 1, P = modPr(c.pr || pricingOf(null), T), skO = sk && typeof sk === "object" ? sk : { upto: Number(sk) || 0, mode: "free" };
+  const rel = x => { x = Number(x) || 0; let k = 0; while (k < L && D[k] <= x) k++; return k; }, ab = v => v > 0 ? D[Math.min(L, v) - 1] : 0, abl = v => v <= 0 ? o : D[Math.min(L, v) - 1];
   const fx = fInfoBase(paid, pend, { ...c, pr: P }, gift, ov ? { ...ov, open_day: rel(ov.open_day) } : ov, off, { upto: rel(skO.upto), mode: skO.mode });
-  return { ...fx, formation: T.formation, module: T.module, mod: { key: T.module, from: M.from, to: M.to, len: L, off: o, label: M.label }, att: Math.max(0, P.total - P.t1), skip: ab(fx.skip), openDay: ab(Math.min(L, fx.openDay)), level: fx.level >= 30 ? 30 : fx.level + o, nextAt: c.launch && schedDay(c) < L ? c.launch + schedDay(c) * 864e5 : 0 };
+  return { ...fx, formation: T.formation, module: T.module, mod: { key: T.module, from: D[0], to: D[L - 1], len: L, off: o, label: modLabel(T), days: D }, att: Math.max(0, P.total - P.t1), skip: ab(fx.skip), openDay: ab(Math.min(L, fx.openDay)), level: fx.level >= (c.len || 30) ? (c.len || 30) : abl(fx.level), nextAt: c.launch && schedDay(c) < L ? c.launch + schedDay(c) * 864e5 : 0 };
 };
 // Classements : rang du jour (parmi les notes du jour) et rang général (par moyenne), dans la promotion de l'étudiant. Égalités = même rang.
 const rankFrom = rows => {
@@ -226,8 +235,10 @@ const gradeOne = async (num, n, g, comment) => {
   return fin;
 };
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
-const pendDays = (fx, pm) => { const o = []; for (let d = fx.mod ? fx.mod.from : 1; d <= (fx.skip || 0); d++) if (!passedRow(pm[d])) o.push(d); return o; };
-const dayAcc = (n, fx, pm) => !fx.launched ? "start" : fx.mod && (n < fx.mod.from || n > fx.mod.to) ? "mod" : n <= (fx.skip || 0) ? (n > fx.level ? "view" : "ok") : n > fx.level ? "pay" : n > fx.openDay ? "wait" : fx.skipMode === "compose" && !fx.preview && pendDays(fx, pm).length ? "comp" : n > (fx.mod ? fx.mod.from : 1) && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
+const modList = fx => fx.mod ? fx.mod.days : Array.from({ length: fx.len || 60 }, (_, i) => i + 1);
+const pendDays = (fx, pm) => modList(fx).filter(d => d <= (fx.skip || 0) && !passedRow(pm[d]));
+const prevDay = (n, fx) => { const l = modList(fx), i = l.indexOf(n); return i > 0 ? l[i - 1] : 0; };
+const dayAcc = (n, fx, pm) => !fx.launched ? "start" : fx.mod && !fx.mod.days.includes(n) ? "mod" : n <= (fx.skip || 0) ? (n > fx.level ? "view" : "ok") : n > fx.level ? "pay" : n > fx.openDay ? "wait" : fx.skipMode === "compose" && !fx.preview && pendDays(fx, pm).length ? "comp" : prevDay(n, fx) && !fx.preview && !passedRow(pm[prevDay(n, fx)]) ? "prev" : "ok";
 const reasonOf = (a, n, fx, pm) => a === "mod" ? "Ce jour ne fait pas partie de votre module. Si vous souhaitez changer de module, contactez MK-DIGIT GRAPH." : a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
   : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DIGIT GRAPH."
   : a === "pay" ? (fx.mod && !(fx.offer > 0) ? "Les " + fx.free + " jours gratuits sont terminés. Réglez " + fx.T1 + " FCFA (formation) pour continuer, plus " + fx.att + " FCFA d'attestation (vous pouvez aussi tout payer en une fois : " + fx.base + " FCFA)." : fx.offer > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.TOTAL + " FCFA en une seule fois pour continuer." : fx.T1 > 0 && fx.paid >= fx.T1 ? "Votre 1re tranche couvre les " + fx.t1days + " premiers jours. Réglez la 2e tranche (" + (fx.base - fx.T1) + " FCFA) pour continuer." : fx.T1 > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.T1 + " FCFA (jours 1 à " + fx.t1days + ") ou " + fx.base + " FCFA (accès complet) pour continuer." : "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.base + " FCFA pour continuer.")
@@ -337,7 +348,7 @@ const A = {
   async regState() {
     const forms = {}; for (const f of Object.keys(FORMS)) { const id = await regCohort(f); if (id) { const cf = await fcfg(id); forms[f] = { open: true, cohort: id, start: cf.start, pr: cf.pr }; } else forms[f] = { open: false }; }
     const rc = await regCohort(), c = await fcfg(rc);
-    return { closed: !!(await setting("reg_closed")), start: c.start, cohort: rc, pr: c.pr, forms, formsInfo: FORMS_PUB, mods: MODS_PUB, modPrice: { total: MOD_TOTAL, formation: MOD_FORM, attestation: MOD_TOTAL - MOD_FORM } };
+    return { closed: !!(await setting("reg_closed")), start: c.start, cohort: rc, pr: c.pr, forms, formsInfo: FORMS_PUB, mods: MODS_PUB, modPrice: { total: MOD_TOTAL, formation: MOD_FORM, attestation: MOD_TOTAL - MOD_FORM }, infoMods: IM_PUB, infoPrices: INFO_PRICES, infoAtt: INFO_ATT };
   },
   async partnerInfo({ code }) { const p = must(await db.from("partners").select("rompu").eq("code", String(code || "").toLowerCase().slice(0, 12)).maybeSingle()); return { exists: !!p, active: !!p && !p.rompu }; },
   async register(d, c) {
@@ -352,7 +363,8 @@ const A = {
     if (must(await db.from("students").select("num").eq("wa", wa).limit(1)).length) throw E("Ce numéro WhatsApp est déjà inscrit. Utilisez « Mon reçu » avec votre numéro d'attribution et votre identifiant, ou contactez-nous sur WhatsApp.");
     let partner = null;
     if (d.partnerCode) { const p = must(await db.from("partners").select("id,rompu").eq("code", String(d.partnerCode).toLowerCase().slice(0, 12)).maybeSingle()); if (p && !p.rompu) partner = p.id; }
-    const TK = cleanTrack(d.formation, d.module); if (d.formation && !FORMS[d.formation]) throw E("Formation inconnue."); if (d.module && !MODS[d.module]) throw E("Module inconnu.");
+    const TK = cleanTrack(d.formation, d.module); if (d.formation && !FORMS[d.formation]) throw E("Formation inconnue."); if (d.module && TK.formation === "creation" && !MODS[d.module]) throw E("Module inconnu.");
+    if (d.module && TK.formation === "informatique" && !infoKeys(d.module).length) throw E("Module inconnu.");
     if (d.formation && TK.formation === "creation" && !TK.module) throw E("Choisissez votre module : création de vidéos ou création de sites web.");
     const rc = await regCohort(TK.formation); if (!rc) throw E("Les inscriptions à cette formation ne sont pas encore ouvertes. Contactez MK-DIGIT GRAPH sur WhatsApp.", 403);
     const n = must(await db.rpc("next_num"));
@@ -527,7 +539,7 @@ const A = {
     const hs = hasP(c, "students"), hp = hasP(c, "partners"), hd = hasP(c, "delete");
     const stRows = (() => { try { return must(st); } catch (err) { return null; } })() || must(await db.from("students").select(COLS).order("date")); // repli si le script SQL « confirmation » n'a pas encore été exécuté
     const OFFS = await offersMap(), T1M = await t1Map(), PM = await pricesMap(), CIVM = await civMap(), TM = await trackMap(), students = stRows.map(r => { const TK = TM[r.num] || DEF_TRACK, CR = courseOf(TK), e0 = enrich(r, pays, OFFS[r.num] || 0, withT1(modPr(PM[Number(r.cohort) || 1], TK), T1M[r.num])), e = { ...e0, form: TK.formation, module: TK.module, freq: CR.length, t1o: T1M[r.num] || 0, t1std: (PM[Number(r.cohort) || 1] || {}).t1 || 0, t1def: T1_REDUIT, civ: CIVM[r.num] || "", cohort: Number(r.cohort) || 1, conf: r.conf || "", conf_at: Number(r.conf_at || 0), conf_by: r.conf_by || "", fdone: CR.filter(x => psd[r.num] && psd[r.num].has(x.n)).length, fcomp: comp[r.num] || 0, gift: gf.has(r.num), attOk: (e0.solde || gf.has(r.num)) && CR.every(x => psd[r.num] && psd[r.num].has(x.n)) }; return hs ? e : { ...e, id: "", vc: "", nom: "Étudiant", prenoms: e.num, dob: "", lieu: "", email: "", wa: "", motif: "" }; });
-    return { me: { name: c.who ? c.who.name : "", root: !c.who || c.who.root, perms: c.who ? c.who.pm : Object.keys(PERMS), tfa: !!process.env.ADMIN_TOTP_SECRET, weakPw: !!(c.who && c.who.root) && !strongOk(String(process.env.ADMIN_PASSWORD || "")) }, total: TOTAL, forms: FORMS_PUB, mods: MODS_PUB, modPrice: { total: MOD_TOTAL, formation: MOD_FORM, attestation: MOD_TOTAL - MOD_FORM }, payments: hasP(c, "payments") ? pays : [], partners: hp ? must(ps).map(p => part(p, true, pouts.filter(x => x.partner === p.id).map(payRow), baseOf(p, pays), commOf(p, pays))) : [], students, dreq: hd || hp ? must(dq).map(r => ({ ...r, date: Number(r.date) })) : [], log: hd ? must(lg).map(g => ({ ...g, date: Number(g.date) })) : [], payouts: hp ? pouts.map(payRow) : [], open: !!(await setting("open")), prod: !!(await setting("prod")), regClosed: !!(await setting("reg_closed")), cohorts: await cohortsList(stRows) };
+    return { me: { name: c.who ? c.who.name : "", root: !c.who || c.who.root, perms: c.who ? c.who.pm : Object.keys(PERMS), tfa: !!process.env.ADMIN_TOTP_SECRET, weakPw: !!(c.who && c.who.root) && !strongOk(String(process.env.ADMIN_PASSWORD || "")) }, total: TOTAL, forms: FORMS_PUB, mods: MODS_PUB, modPrice: { total: MOD_TOTAL, formation: MOD_FORM, attestation: MOD_TOTAL - MOD_FORM }, infoMods: IM_PUB, infoPrices: INFO_PRICES, infoAtt: INFO_ATT, payments: hasP(c, "payments") ? pays : [], partners: hp ? must(ps).map(p => part(p, true, pouts.filter(x => x.partner === p.id).map(payRow), baseOf(p, pays), commOf(p, pays))) : [], students, dreq: hd || hp ? must(dq).map(r => ({ ...r, date: Number(r.date) })) : [], log: hd ? must(lg).map(g => ({ ...g, date: Number(g.date) })) : [], payouts: hp ? pouts.map(payRow) : [], open: !!(await setting("open")), prod: !!(await setting("prod")), regClosed: !!(await setting("reg_closed")), cohorts: await cohortsList(stRows) };
   },
   async img(d) { check(d.token, "a"); const r = must(await db.from("students").select("photo").eq("num", String(d.num || "")).maybeSingle()); if (!r) throw E("Introuvable.", 404); return { data: r.photo }; },
   async pimg(d) { check(d.token, "a"); const r = must(await db.from("payments").select("shot").eq("id", String(d.id || "")).maybeSingle()); if (!r) throw E("Introuvable.", 404); return { data: r.shot }; },
@@ -698,8 +710,8 @@ const A = {
     /* c.self est posé par le serveur (selfTrack), jamais par le client */
     if (!(c && c.self)) check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30);
     if (!must(await db.from("students").select("num").eq("num", num).maybeSingle())) throw E("Étudiant introuvable.", 404);
-    const f = String(d.formation || "creation"), mraw = String(d.module || ""); if (!FORMS[f]) throw E("Formation inconnue."); if (mraw && !MODS[mraw]) throw E("Module inconnu.");
-    if (f !== "creation" && mraw) throw E("Les modules existent seulement pour la formation « Création vidéo et web ».");
+    const f = String(d.formation || "creation"), mraw = String(d.module || ""); if (!FORMS[f]) throw E("Formation inconnue."); if (mraw && f === "creation" && !MODS[mraw]) throw E("Module inconnu."); if (mraw && f === "informatique" && !infoKeys(mraw).length) throw E("Module inconnu.");
+    if (mraw && f !== "creation" && f !== "informatique") throw E("Cette formation n'a pas de modules.");
     const T = cleanTrack(f, mraw), cur = await trackOf(num); if (T.formation === cur.formation && T.module === cur.module) return { ok: true, same: true };
     const ps = must(await db.from("payments").select("amount,st").eq("num", num)), paid = sum(ps, "valide"), used = paid + sum(ps, "attente"), off = await offerOf(num); let cohort = null;
     if (T.formation !== cur.formation) {
@@ -723,12 +735,12 @@ const A = {
   // ---------- Formation : étudiant ----------
   async fState(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fs");
-    return { num: s.num, name: s.prenoms, ro: !!ro, preview: !!fx.preview, canSwitch: !ro && !Object.keys(pm).length, ...fx, days: CT.course.map(x => { const r = pm[x.n]; return { n: x.n, dn: x.n - (fx.mod ? fx.mod.off : 0), title: x.title, week: x.week, proj: x.proj, acc: dayAcc(x.n, fx, pm), sub: r && r.sub ? Number(r.sub) : 0, grade: r && r.grade != null ? Number(r.grade) : null, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null }; }) };
+    return { num: s.num, name: s.prenoms, ro: !!ro, preview: !!fx.preview, canSwitch: !ro && !Object.keys(pm).length, ...fx, days: CT.course.map(x => { const r = pm[x.n]; return { n: x.n, dn: fx.mod ? fx.mod.days.indexOf(x.n) + 1 : x.n, title: x.title, week: x.week, proj: x.proj, acc: dayAcc(x.n, fx, pm), sub: r && r.sub ? Number(r.sub) : 0, grade: r && r.grade != null ? Number(r.grade) : null, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null }; }) };
   },
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], docs: [], purged: 0 } : await vidsFor(s.num, n); return { form: curT().formation, len: fx.len || 30, mod: fx.mod ? { from: fx.mod.from, to: fx.mod.to } : null, view: dayAcc(n, fx, pm) === "view", vids: V.list, docs: V.docs || [], vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], docs: [], purged: 0 } : await vidsFor(s.num, n); return { form: curT().formation, len: fx.len || 30, mod: fx.mod ? { from: fx.mod.from, to: fx.mod.to, days: fx.mod.days } : null, view: dayAcc(n, fx, pm) === "view", vids: V.list, docs: V.docs || [], vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
   },
   // ---------- Formation : vidéos et images des cours (administrateur, droit « cours et notes ») ----------
   async fMediaList(d) {
@@ -866,7 +878,7 @@ const A = {
     const names = hasP(ctx, "students"), OFS = await offersMap(), T1X = await t1Map(), PMX = await pricesMap(), RK = rankFrom(subs), SKM = await skipMap(), TMX = await trackMap();
     return { stats: { classAvg: RK.classAvg, nr: RK.nr, dayAvg: RK.dayAvg }, cohort: cid, cohorts: await cohortsList(all), me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
       subs: !hasP(ctx, "f_corr") ? [] : subs.filter(r => r.sub).map(r => ({ num: r.num, name: names ? (name[r.num] || r.num) : r.num, day: r.day, sub: Number(r.sub), grade: r.grade == null ? null : Number(r.grade), gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), att: Number(r.att || 0), gat: Number(r.gat || 0), title: (dayDef(r.day) || {}).title || "" })),
-      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, wa: names ? x.wa || "" : "", email: names ? x.email || "" : "", termine: !!x.termine, since: Number(x.date || 0), paid, free: gifts.has(x.num), level: gifts.has(x.num) ? FLEN[(TMX[x.num] || DEF_TRACK).formation] : (() => { const TK = TMX[x.num] || DEF_TRACK, L0 = levelOf(paid, OFS[x.num] || 0, withT1(modPr(PMX[Number(x.cohort) || 1], TK), T1X[x.num])); return TK.module ? (L0 >= 30 ? 30 : L0 + MODS[TK.module].from - 1) : L0; })(), req: courseOf(TMX[x.num] || DEF_TRACK).length, mod: (TMX[x.num] || DEF_TRACK).module, form: (TMX[x.num] || DEF_TRACK).formation, done: subs.filter(r => r.num === x.num && passedRow(r) && inMod(Number(r.day), TMX[x.num] || DEF_TRACK)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num), skip: SKM[x.num] ? SKM[x.num].upto : 0, skipMode: SKM[x.num] ? SKM[x.num].mode : "free", skipDone: SKM[x.num] ? subs.filter(r => r.num === x.num && r.day <= SKM[x.num].upto && passedRow(r)).length : 0, skipNote: SKM[x.num] ? SKM[x.num].note : "", skipAt: SKM[x.num] ? SKM[x.num].at : 0 }; }) };
+      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, wa: names ? x.wa || "" : "", email: names ? x.email || "" : "", termine: !!x.termine, since: Number(x.date || 0), paid, free: gifts.has(x.num), level: gifts.has(x.num) ? FLEN[(TMX[x.num] || DEF_TRACK).formation] : (() => { const TK = TMX[x.num] || DEF_TRACK, L0 = levelOf(paid, OFS[x.num] || 0, withT1(modPr(PMX[Number(x.cohort) || 1], TK), T1X[x.num])); if (!TK.module) return L0; const DL = modDays(TK).list; return L0 >= FLEN[TK.formation] ? FLEN[TK.formation] : L0 <= 0 ? DL[0] - 1 : DL[Math.min(DL.length, L0) - 1]; })(), req: courseOf(TMX[x.num] || DEF_TRACK).length, mod: (TMX[x.num] || DEF_TRACK).module, form: (TMX[x.num] || DEF_TRACK).formation, done: subs.filter(r => r.num === x.num && passedRow(r) && inMod(Number(r.day), TMX[x.num] || DEF_TRACK)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num), skip: SKM[x.num] ? SKM[x.num].upto : 0, skipMode: SKM[x.num] ? SKM[x.num].mode : "free", skipDone: SKM[x.num] ? subs.filter(r => r.num === x.num && r.day <= SKM[x.num].upto && passedRow(r)).length : 0, skipNote: SKM[x.num] ? SKM[x.num].note : "", skipAt: SKM[x.num] ? SKM[x.num].at : 0 }; }) };
   },
   async fSub(d, c) {
     check(d.token, "a"); const n = Math.round(+d.day), x = dayDef(n), num = String(d.num || "").slice(0, 30);
@@ -891,7 +903,7 @@ const A = {
   },
   // ---------- Formation : bulletin de notes et fiches de correction (étudiant) ----------
   async fBulletin(d, c) {
-    const { s, pm } = await fctx(d, c, "fb"), R = await rankInfo(await cohortOf(s.num)), rows = CT.course.map(x => { const r = pm[x.n]; return { rk: r && r.grade != null ? R.dayRank(x.n, r.grade) : null, cav: R.dayAvg[x.n] != null ? R.dayAvg[x.n] : null, n: x.n, title: x.title, week: x.week, proj: x.proj, sub: r && r.sub ? Number(r.sub) : 0, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null, grade: r && r.grade != null ? Number(r.grade) : null, gat: r && r.gat ? Number(r.gat) : 0 }; });
+    const { s, pm } = await fctx(d, c, "fb"), MDL = (modDays(curT()) || {}).list, R = await rankInfo(await cohortOf(s.num)), rows = CT.course.map(x => { const r = pm[x.n]; return { rk: r && r.grade != null ? R.dayRank(x.n, r.grade) : null, cav: R.dayAvg[x.n] != null ? R.dayAvg[x.n] : null, n: x.n, dn: MDL ? MDL.indexOf(x.n) + 1 : x.n, title: x.title, week: x.week, proj: x.proj, sub: r && r.sub ? Number(r.sub) : 0, gp: r && r.gp != null ? Number(r.gp) : null, gt: r && r.gt != null ? Number(r.gt) : null, grade: r && r.grade != null ? Number(r.grade) : null, gat: r && r.gat ? Number(r.gat) : 0 }; });
     const gr = rows.filter(r => r.grade != null), ok = gr.filter(r => r.grade >= PASSM), avg = gr.length ? Math.round(gr.reduce((t, r) => t + r.grade, 0) / gr.length * 100) / 100 : null;
     return { rank: R.genRank(s.num), classAvg: R.classAvg, nr: R.nr, name: (s.nom + " " + s.prenoms).trim(), num: s.num, rows, validated: ok.length, total: CT.course.length, avg, complete: ok.length === CT.course.length, mention: ok.length === CT.course.length ? (avg >= 18 ? "Excellent" : avg >= 16 ? "Très bien" : "Bien") : "", date: Date.now() };
   },
@@ -900,7 +912,7 @@ const A = {
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
     if (!r || r.grade == null) throw E("La fiche de correction sera disponible une fois votre travail corrigé.", 403);
     const R = await rankInfo(await cohortOf(s.num)), dt = r.data || {}, Q = quizOf(n), sc = Q ? qscore(n, dt.qa || {}) : null, tc = CT.teach[n] || {}, good = q => q[0] === "qcm" ? q[2][q[3]] : q[0] === "vf" ? (q[2] ? "Vrai" : "Faux") : q[2][0];
-    return { rk: R.dayRank(n, r.grade), dayAvg: R.dayAvg[n] != null ? R.dayAvg[n] : null, n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
+    const MDL = (modDays(curT()) || {}).list; return { rk: R.dayRank(n, r.grade), dayAvg: R.dayAvg[n] != null ? R.dayAvg[n] : null, n, dn: MDL ? MDL.indexOf(n) + 1 : n, title: x.title, week: x.week, proj: x.proj, name: (s.nom + " " + s.prenoms).trim(), num: s.num, exercise: (x.s.find(z => /^Exercice/.test(z.h)) || { b: [{ i: [] }] }).b[0].i, crit: { b: tc.b || [], a: tc.a || "" },
       sub: Number(r.sub || 0), gat: Number(r.gat || 0), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), grade: Number(r.grade), comment: r.comment || "", att: r.att || 0,
       ...(await vidDocs(s.num, n)), data: { answer: dt.answer || "", files: dt.files || {}, shots: dt.shots && dt.shots.length ? dt.shots : (dt.shot ? [dt.shot] : []), steps: dt.steps || [], ex: dt.ex || [] },
       theory: Q ? { s: sc.s, t: sc.t, v: sc.v, items: Q.map((q, i) => ({ q: q[1], a: qans(q, (dt.qa || {})[i]), ok: sc.ok[i], good: good(q), ex: qexp(q) })) } : null };
