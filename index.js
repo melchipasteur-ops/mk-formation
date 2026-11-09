@@ -44,7 +44,7 @@ async function limit(key, max, win) {
   must(await db.from("rate").update({ n: r.n + 1 }).eq("k", key));
 }
 // Essais INCORRECTS uniquement : un utilisateur honnête n'est jamais bloqué par ses bonnes connexions
-async function failCheck(key, max, win) { const r = must(await db.from("rate").select("*").eq("k", key).maybeSingle()); if (r && Date.now() - Number(r.t) <= win && r.n >= max) throw E("Trop d'essais incorrects (3 maximum). Réessayez dans 15 minutes ou contactez MK-DESIGN GRAPH.", 429); }
+async function failCheck(key, max, win) { const r = must(await db.from("rate").select("*").eq("k", key).maybeSingle()); if (r && Date.now() - Number(r.t) <= win && r.n >= max) throw E("Trop d'essais incorrects (3 maximum). Réessayez dans 15 minutes ou contactez MK-DIGIT GRAPH.", 429); }
 async function failAdd(key, win) { const now = Date.now(), r = must(await db.from("rate").select("*").eq("k", key).maybeSingle()); if (!r || now - Number(r.t) > win) must(await db.from("rate").upsert({ k: key, n: 1, t: now })); else must(await db.from("rate").update({ n: r.n + 1 }).eq("k", key)); }
 const failClear = async key => { must(await db.from("rate").delete().eq("k", key)); };
 // Double vérification (TOTP, compatible Google Authenticator) : active seulement si ADMIN_TOTP_SECRET est défini
@@ -188,7 +188,7 @@ const gradeOne = async (num, n, g, comment) => {
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
 const dayAcc = (n, fx, pm) => !fx.launched ? "start" : n > fx.level ? "pay" : n > fx.openDay ? "wait" : n > 1 && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
 const reasonOf = (a, n, fx) => a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
-  : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DESIGN GRAPH."
+  : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DIGIT GRAPH."
   : a === "pay" ? (fx.offer > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.TOTAL + " FCFA en une seule fois pour continuer." : fx.T1 > 0 && fx.paid >= fx.T1 ? "Votre 1re tranche couvre les " + fx.t1days + " premiers jours. Réglez la 2e tranche (" + (fx.base - fx.T1) + " FCFA) pour continuer." : fx.T1 > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.T1 + " FCFA (jours 1 à " + fx.t1days + ") ou " + fx.base + " FCFA (accès complet) pour continuer." : "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.base + " FCFA pour continuer.")
   : "Validez d'abord le jour précédent (14/20 minimum).";
 async function fctx(d, c, key, max = 300) {
@@ -260,7 +260,7 @@ const A = {
   async partnerInfo({ code }) { const p = must(await db.from("partners").select("rompu").eq("code", String(code || "").toLowerCase().slice(0, 12)).maybeSingle()); return { exists: !!p, active: !!p && !p.rompu }; },
   async register(d, c) {
     await limit("rg:" + c.ip, 20, 3600e3);
-    if (await setting("reg_closed")) throw E("Les inscriptions sont fermées pour le moment. Contactez MK-DESIGN GRAPH sur WhatsApp.", 403);
+    if (await setting("reg_closed")) throw E("Les inscriptions sont fermées pour le moment. Contactez MK-DIGIT GRAPH sur WhatsApp.", 403);
     const nom = cleanSp(d.nom), prenoms = cleanSp(d.prenoms), civ = String(d.civ || "").trim();
     let wa = String(d.wa || "").replace(/\D/g, "");
     if (!CIVS.includes(civ)) throw E("Choisissez votre civilité (M., Mme ou Mlle).");
@@ -400,7 +400,7 @@ const A = {
     await failCheck("pf:" + cd, 3, 900e3); await failCheck("pi:" + c.ip, 20, 900e3);
     const p = must(await db.from("partners").select("*").eq("code", cd).maybeSingle()), ok = p && pinOk(p, pin);
     if (!ok) { await failAdd("pf:" + cd, 900e3); await failAdd("pi:" + c.ip, 900e3); await sleep(1000); throw E("Code ou mot de passe incorrect.", 401); }
-    if (p.rompu) throw E("Accès désactivé : le contrat avec MK-DESIGN GRAPH a pris fin.", 403);
+    if (p.rompu) throw E("Accès désactivé : le contrat avec MK-DIGIT GRAPH a pris fin.", 403);
     if (!p.pin_hash) must(await db.from("partners").update({ pin_hash: hash(String(pin).trim().toUpperCase()), pin: p.pin_changed ? null : pinEnc(String(p.pin)) }).eq("id", p.id)); // ancien code en clair : converti en empreinte
     return { token: sign({ r: "p", pid: p.id, exp: Date.now() + 8 * 3600e3 }), must: !p.pin_changed };
   },

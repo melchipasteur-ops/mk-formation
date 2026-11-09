@@ -44,7 +44,7 @@ async function limit(key, max, win) {
   must(await db.from("rate").update({ n: r.n + 1 }).eq("k", key));
 }
 // Essais INCORRECTS uniquement : un utilisateur honnête n'est jamais bloqué par ses bonnes connexions
-async function failCheck(key, max, win) { const r = must(await db.from("rate").select("*").eq("k", key).maybeSingle()); if (r && Date.now() - Number(r.t) <= win && r.n >= max) throw E("Trop d'essais incorrects (3 maximum). Réessayez dans 15 minutes ou contactez MK-DESIGN GRAPH.", 429); }
+async function failCheck(key, max, win) { const r = must(await db.from("rate").select("*").eq("k", key).maybeSingle()); if (r && Date.now() - Number(r.t) <= win && r.n >= max) throw E("Trop d'essais incorrects (3 maximum). Réessayez dans 15 minutes ou contactez MK-DIGIT GRAPH.", 429); }
 async function failAdd(key, win) { const now = Date.now(), r = must(await db.from("rate").select("*").eq("k", key).maybeSingle()); if (!r || now - Number(r.t) > win) must(await db.from("rate").upsert({ k: key, n: 1, t: now })); else must(await db.from("rate").update({ n: r.n + 1 }).eq("k", key)); }
 const failClear = async key => { must(await db.from("rate").delete().eq("k", key)); };
 // Double vérification (TOTP, compatible Google Authenticator) : active seulement si ADMIN_TOTP_SECRET est défini
@@ -228,8 +228,8 @@ const gradeOne = async (num, n, g, comment) => {
 const passedRow = r => !!r && r.grade != null && Number(r.grade) >= PASSM;
 const pendDays = (fx, pm) => { const o = []; for (let d = fx.mod ? fx.mod.from : 1; d <= (fx.skip || 0); d++) if (!passedRow(pm[d])) o.push(d); return o; };
 const dayAcc = (n, fx, pm) => !fx.launched ? "start" : fx.mod && (n < fx.mod.from || n > fx.mod.to) ? "mod" : n <= (fx.skip || 0) ? (n > fx.level ? "view" : "ok") : n > fx.level ? "pay" : n > fx.openDay ? "wait" : fx.skipMode === "compose" && !fx.preview && pendDays(fx, pm).length ? "comp" : n > (fx.mod ? fx.mod.from : 1) && !fx.preview && !passedRow(pm[n - 1]) ? "prev" : "ok";
-const reasonOf = (a, n, fx, pm) => a === "mod" ? "Ce jour ne fait pas partie de votre module. Si vous souhaitez changer de module, contactez MK-DESIGN GRAPH." : a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
-  : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DESIGN GRAPH."
+const reasonOf = (a, n, fx, pm) => a === "mod" ? "Ce jour ne fait pas partie de votre module. Si vous souhaitez changer de module, contactez MK-DIGIT GRAPH." : a === "start" ? "La formation n'a pas encore démarré. Vous y aurez accès dès son lancement officiel."
+  : a === "wait" ? "Le jour " + n + " n'est pas encore ouvert. Il s'ouvrira sur l'ordre de MK-DIGIT GRAPH."
   : a === "pay" ? (fx.mod && !(fx.offer > 0) ? "Les " + fx.free + " jours gratuits sont terminés. Réglez " + fx.T1 + " FCFA (formation) pour continuer, plus " + fx.att + " FCFA d'attestation (vous pouvez aussi tout payer en une fois : " + fx.base + " FCFA)." : fx.offer > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.TOTAL + " FCFA en une seule fois pour continuer." : fx.T1 > 0 && fx.paid >= fx.T1 ? "Votre 1re tranche couvre les " + fx.t1days + " premiers jours. Réglez la 2e tranche (" + (fx.base - fx.T1) + " FCFA) pour continuer." : fx.T1 > 0 ? "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.T1 + " FCFA (jours 1 à " + fx.t1days + ") ou " + fx.base + " FCFA (accès complet) pour continuer." : "Les " + fx.free + " jours gratuits sont terminés. Payez " + fx.base + " FCFA pour continuer.")
   : a === "view" ? "Ce jour est ouvert en lecture seule : vous pouvez suivre le cours, mais vous devez d'abord payer pour composer (remettre votre travail)." : a === "comp" ? "Votre formateur vous a fait avancer : composez d'abord (et faites valider) le(s) jour(s) " + pendDays(fx, pm || {}).join(", ") + " (14/20 minimum chacun). Vous pouvez les faire le même jour." : "Validez d'abord le jour précédent (14/20 minimum).";
 async function fctx(d, c, key, max = 300) {
@@ -246,7 +246,7 @@ async function fctx(d, c, key, max = 300) {
   must(await db.from("formation_prog").select(cols).eq("num", s.num)).forEach(r => pm[r.day] = r);
   return { s, fx, pm, ro: adm };
 }
-function needDay(d, fx, pm, write) { const n = Math.round(+d.day); if (!dayDef(n)) throw E(CTS[curT().formation].course.some(x => x.n === n) ? "Ce jour ne fait pas partie de votre module. Si vous souhaitez changer de module, contactez MK-DESIGN GRAPH." : "Jour inconnu.", 404); const a = dayAcc(n, fx, pm); if (a === "view") { if (write) throw E(reasonOf(a, n, fx, pm), 403); return n; } if (a !== "ok") throw E(reasonOf(a, n, fx, pm), 403); return n; } // « view » = lecture seule (avancé sans avoir payé) : toute écriture (travail, quiz, vidéo) est refusée
+function needDay(d, fx, pm, write) { const n = Math.round(+d.day); if (!dayDef(n)) throw E(CTS[curT().formation].course.some(x => x.n === n) ? "Ce jour ne fait pas partie de votre module. Si vous souhaitez changer de module, contactez MK-DIGIT GRAPH." : "Jour inconnu.", 404); const a = dayAcc(n, fx, pm); if (a === "view") { if (write) throw E(reasonOf(a, n, fx, pm), 403); return n; } if (a !== "ok") throw E(reasonOf(a, n, fx, pm), 403); return n; } // « view » = lecture seule (avancé sans avoir payé) : toute écriture (travail, quiz, vidéo) est refusée
 function cleanData(d) {
   const o = {}, arr = a => Array.isArray(a) ? a.slice(0, 60).map(Boolean) : [];
   o.steps = arr(d.steps); o.ex = arr(d.ex); o.answer = String(d.answer || "").slice(0, 4000); o.files = {};
@@ -342,7 +342,7 @@ const A = {
   async partnerInfo({ code }) { const p = must(await db.from("partners").select("rompu").eq("code", String(code || "").toLowerCase().slice(0, 12)).maybeSingle()); return { exists: !!p, active: !!p && !p.rompu }; },
   async register(d, c) {
     await limit("rg:" + c.ip, 20, 3600e3);
-    if (await setting("reg_closed")) throw E("Les inscriptions sont fermées pour le moment. Contactez MK-DESIGN GRAPH sur WhatsApp.", 403);
+    if (await setting("reg_closed")) throw E("Les inscriptions sont fermées pour le moment. Contactez MK-DIGIT GRAPH sur WhatsApp.", 403);
     const nom = cleanSp(d.nom), prenoms = cleanSp(d.prenoms), civ = String(d.civ || "").trim();
     let wa = String(d.wa || "").replace(/\D/g, "");
     if (!CIVS.includes(civ)) throw E("Choisissez votre civilité (M., Mme ou Mlle).");
@@ -354,11 +354,11 @@ const A = {
     if (d.partnerCode) { const p = must(await db.from("partners").select("id,rompu").eq("code", String(d.partnerCode).toLowerCase().slice(0, 12)).maybeSingle()); if (p && !p.rompu) partner = p.id; }
     const TK = cleanTrack(d.formation, d.module); if (d.formation && !FORMS[d.formation]) throw E("Formation inconnue."); if (d.module && !MODS[d.module]) throw E("Module inconnu.");
     if (d.formation && TK.formation === "creation" && !TK.module) throw E("Choisissez votre module : création de vidéos ou création de sites web.");
-    const rc = await regCohort(TK.formation); if (!rc) throw E("Les inscriptions à cette formation ne sont pas encore ouvertes. Contactez MK-DESIGN GRAPH sur WhatsApp.", 403);
+    const rc = await regCohort(TK.formation); if (!rc) throw E("Les inscriptions à cette formation ne sont pas encore ouvertes. Contactez MK-DIGIT GRAPH sur WhatsApp.", 403);
     const n = must(await db.rpc("next_num"));
     const row = { num: "FORM-2026-" + String(n).padStart(5, "0"), id: strongCode(12), vc: rnd(10), nom: nom.toUpperCase().slice(0, 80), prenoms: prenoms.slice(0, 120), wa, partner, phase: "inscrit", status: "attente", termine: false, retire: false, montant: 0, date: Date.now(), ...(rc !== 1 ? { cohort: rc } : {}) };
     let ins = await db.from("students").insert({ ...row, civ }); if (ins.error) ins = await db.from("students").insert(row); must(ins);
-    if (TK.formation !== "creation" || TK.module) { const u = await db.from("students").update({ formation: TK.formation, module: TK.module }).eq("num", row.num); if (u.error) { await db.from("students").delete().eq("num", row.num); throw E("Cette formation n'est pas encore activée sur le serveur (mise à jour de la base requise). Contactez MK-DESIGN GRAPH sur WhatsApp."); } }
+    if (TK.formation !== "creation" || TK.module) { const u = await db.from("students").update({ formation: TK.formation, module: TK.module }).eq("num", row.num); if (u.error) { await db.from("students").delete().eq("num", row.num); throw E("Cette formation n'est pas encore activée sur le serveur (mise à jour de la base requise). Contactez MK-DIGIT GRAPH sur WhatsApp."); } }
     return { num: row.num, id: row.id };
   },
   async complete(d, c) {
@@ -487,7 +487,7 @@ const A = {
     await failCheck("pf:" + cd, 3, 900e3); await failCheck("pi:" + c.ip, 20, 900e3);
     const p = must(await db.from("partners").select("*").eq("code", cd).maybeSingle()), ok = p && pinOk(p, pin);
     if (!ok) { await failAdd("pf:" + cd, 900e3); await failAdd("pi:" + c.ip, 900e3); await sleep(1000); throw E("Code ou mot de passe incorrect.", 401); }
-    if (p.rompu) throw E("Accès désactivé : le contrat avec MK-DESIGN GRAPH a pris fin.", 403);
+    if (p.rompu) throw E("Accès désactivé : le contrat avec MK-DIGIT GRAPH a pris fin.", 403);
     if (!p.pin_hash) must(await db.from("partners").update({ pin_hash: hash(String(pin).trim().toUpperCase()), pin: p.pin_changed ? null : pinEnc(String(p.pin)) }).eq("id", p.id)); // ancien code en clair : converti en empreinte
     return { token: sign({ r: "p", pid: p.id, exp: Date.now() + 8 * 3600e3 }), must: !p.pin_changed };
   },
@@ -717,7 +717,7 @@ const A = {
   async selfTrack(d, c) { // l'étudiant change lui-même de formation / module, tant qu'il n'a encore rien composé
     await limit("st:" + c.ip, 20, 3600e3);
     const s = await findStudent(d.num, d.id, "num"); if (!s) throw E("Numéro ou identifiant incorrect.", 404);
-    if (must(await db.from("formation_prog").select("day").eq("num", s.num).limit(1)).length) throw E("Vous avez déjà composé dans votre formation : votre choix est définitif. Seul l'administrateur peut encore le modifier : contactez MK-DESIGN GRAPH sur WhatsApp.", 409);
+    if (must(await db.from("formation_prog").select("day").eq("num", s.num).limit(1)).length) throw E("Vous avez déjà composé dans votre formation : votre choix est définitif. Seul l'administrateur peut encore le modifier : contactez MK-DIGIT GRAPH sur WhatsApp.", 409);
     return await A.setTrack({ num: s.num, formation: d.formation, module: d.module }, { ...c, self: true });
   },
   // ---------- Formation : étudiant ----------

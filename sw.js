@@ -1,4 +1,4 @@
-/* Service worker MK-DESIGN GRAPH — volontairement minimal et sans risque pour la production.
+/* Service worker MK-DIGIT GRAPH — volontairement minimal et sans risque pour la production.
    • Il ne met JAMAIS en cache les pages, l'API, les données des étudiants, les paiements ni les médias.
    • Il ne touche à aucune requête autre que : (1) la navigation entre pages, pour afficher une page « hors connexion »
      si le réseau est coupé ; (2) les icônes et la page hors connexion, gardées localement.

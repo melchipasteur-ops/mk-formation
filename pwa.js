@@ -1,4 +1,4 @@
-/* MK-DESIGN GRAPH — mode application : service worker, invitation à installer (avec solutions de secours) et diagnostic (?pwa=debug). */
+/* MK-DIGIT GRAPH — mode application : service worker, invitation à installer (avec solutions de secours) et diagnostic (?pwa=debug). */
 (function () {
   "use strict";
   var st = false; try { st = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) {}

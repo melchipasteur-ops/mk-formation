@@ -55,3 +55,9 @@ Avant l'étape 1, le site continue de fonctionner comme avant (l'inscription cla
 - **Page d'inscription** : programme, durée et date d'ouverture suivent la formation choisie (informatique : 2 mois · 60 jours).
 - **Administration de la formation** : la promotion affichée est mémorisée (plus de retour automatique à la création après rechargement), chaque promotion indique sa formation (💻 / 🎬📱), et une promotion supprimée retombe sur une promotion existante.
 - Fichiers modifiés : `api/index.js`, `index.html`, `formation.html`. Aucun nouveau SQL.
+
+## Changement de nom : MK-DIGIT GRAPH
+- « MK-DESIGN GRAPH » est remplacé par « MK-DIGIT GRAPH » partout : pages, messages, reçus et PDF, attestation, manifestes de l'application, service worker, clé d'authentification (`tfa-setup.js`).
+- Images redessinées : logo (en-tête), nom et ligne du PDG sur l'attestation, texte circulaire du cachet (le monogramme « DG » est conservé).
+- Fichiers modifiés : `api/index.js`, `index.js`, `index.html`, `formation.html`, `offline.html`, `pwa.js`, `sw.js`, `tfa-setup.js`, `package.json`, les 3 manifestes et le dossier `icons/`. Aucun nouveau SQL.
+- Le nom de l'application installée change après mise à jour (les anciens raccourcis gardent l'ancien nom jusqu'à réinstallation).

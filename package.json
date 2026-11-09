@@ -3,7 +3,7 @@
   "name": "mk-formation",
   "version": "1.0.0",
   "private": true,
-  "description": "Plateforme de formation MK-DESIGN GRAPH",
+  "description": "Plateforme de formation MK-DIGIT GRAPH",
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0"
   }
