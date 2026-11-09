@@ -31,3 +31,10 @@ Avant l'étape 1, le site continue de fonctionner comme avant (l'inscription cla
 ## À savoir
 - Le texte « Début de la formation : 01 novembre 2026 » du motif de paiement de la création est inchangé.
 - Pour lire les cours et notes de l'informatique côté administrateur, sélectionnez une promotion informatique dans le sélecteur de promotion.
+
+## Nouveau cours d'informatique (30 jours)
+- **Jours 1–6** : allumer l'ordinateur, bureau et icônes, barre des tâches/Démarrer/fenêtres, souris et clavier, fichiers et clé USB, Internet/e-mail/sécurité. **Jours 7–13** Word, **14–23** Excel, **24–30** PowerPoint, projet intégré et évaluation.
+- Chaque jour : 20 questions théoriques (QCM, vrai/faux, réponse courte), plusieurs parties illustrées (26 schémas intégrés), exercice précis, grille de notation pour le correcteur.
+- **Remise des travaux** : zone « Remise de mon travail pratique » (Word, Excel, PowerPoint, PDF, texte, CSV, ZIP ; 6 fichiers de 15 Mo max par jour) + zone d'images.
+- **Audios de l'enseignant** : en administration, dans « Audios, vidéos et images du cours », ajoutez des fichiers mp3, m4a, aac, wav, ogg (500 Mo max). Les étudiants les écoutent dans le cours du jour.
+- Aucun nouveau SQL : les fichiers déposés utilisent le bucket existant `formation-media` (préfixe `docs/`).
