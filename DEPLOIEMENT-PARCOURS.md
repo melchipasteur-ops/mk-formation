@@ -61,3 +61,9 @@ Avant l'étape 1, le site continue de fonctionner comme avant (l'inscription cla
 - Images redessinées : logo (en-tête), nom et ligne du PDG sur l'attestation, texte circulaire du cachet (le monogramme « DG » est conservé).
 - Fichiers modifiés : `api/index.js`, `index.js`, `index.html`, `formation.html`, `offline.html`, `pwa.js`, `sw.js`, `tfa-setup.js`, `package.json`, les 3 manifestes et le dossier `icons/`. Aucun nouveau SQL.
 - Le nom de l'application installée change après mise à jour (les anciens raccourcis gardent l'ancien nom jusqu'à réinstallation).
+
+## Fiche étudiant et recherche globale
+- Chaque ligne d'étudiant n'a plus qu'un bouton **⚙️ Gérer** : il ouvre la fiche de l'étudiant avec les actions groupées (Contacter · Formation et promotion · Paiement et offres · Attestation · Identité et accès · Zone sensible). La fiche reste ouverte et se met à jour après chaque action.
+- **Recherche globale** « 🔎 Aller à un étudiant » sous le menu, sur toutes les pages d'administration (nom, numéro ou téléphone ; Entrée ouvre le premier résultat).
+- Les noms d'étudiants sont cliquables partout (listes, paiements, activité récente). Dans l'administration de la formation : bouton « ⚙️ Fiche » dans la liste et dans la vue d'un étudiant.
+- Fichiers modifiés : `index.html`, `formation.html`. Aucun SQL.
