@@ -108,11 +108,12 @@ async function syncStatus(num) {
 // ===== PARCOURS : formation (création vidéo & web / informatique) + module (vidéo ou web) =====
 // Chaque étudiant a un « parcours » : { formation, module }. Sans colonne en base (ou valeur vide) = comportement d'origine (création, 30 jours, tarif de la promotion).
 const CTS = { creation: require("./formation_content.json"), informatique: require("./formation_content_informatique.json") }; // cours + leçons + réponses : lu uniquement par le serveur
-const FORMS = { creation: { label: "Création de vidéos avec l'IA et de sites web", short: "Création vidéo & web", key: 0 }, informatique: { label: "Informatique administrative : Word, Excel et PowerPoint", short: "Informatique (Word, Excel, PowerPoint)", key: 100 } };
+const FORMS = { creation: { label: "Création de vidéos avec l'IA et de sites web", short: "Création vidéo & web", key: 0 }, informatique: { label: "Informatique professionnelle : de débutant à professionnel (60 jours)", short: "Informatique professionnelle (60 jours)", key: 100 } };
 const MODS = { video: { from: 1, to: 14, label: "Création de vidéos avec l'IA" }, web: { from: 15, to: 29, label: "Création de sites web" } };
 const MOD_TOTAL = +process.env.PRIX_MODULE_TOTAL || 7000, MOD_FORM = +process.env.PRIX_MODULE_FORMATION || 5000; // 7 000 = 5 000 (formation) + 2 000 (attestation)
 const FORMS_PUB = Object.fromEntries(Object.entries(FORMS).map(([k, v]) => [k, { label: v.label, short: v.short, modules: k === "creation" }]));
 const MODS_PUB = Object.fromEntries(Object.entries(MODS).map(([k, v]) => [k, { label: v.label, from: v.from, to: v.to, days: v.to - v.from + 1 }]));
+const FLEN = { creation: 30, informatique: 60 }; // nombre de jours de chaque formation
 const DEF_TRACK = { formation: "creation", module: null };
 const cleanTrack = (f, m) => { const formation = FORMS[f] ? f : "creation", module = formation === "creation" && MODS[m] ? m : null; return { formation, module }; };
 const curT = () => (als.getStore() || {}).T || DEF_TRACK;
@@ -160,7 +161,7 @@ const checkDob = dob => {
   const t = Date.parse(dob + "T00:00:00Z"); if (isNaN(t) || new Date(t).toISOString().slice(0, 10) !== dob) throw E("Date de naissance inexistante : vérifiez le jour, le mois et l'année.");
   const age = (Date.now() - t) / 31557600000; if (!(age >= 10 && age <= 100)) throw E("Date de naissance peu plausible : vérifiez l'année (âge entre 10 et 100 ans).");
 };
-const pricingOf = r => ({ total: r && Number(r.price) > 0 ? Number(r.price) : TOTAL, t1: r && r.t1 != null ? Number(r.t1) : T1, free: r && r.free_days != null ? Number(r.free_days) : FREE_DAYS, t1days: r && r.t1_days != null ? Number(r.t1_days) : T1_DAYS });
+const pricingOf = r => ({ len: FLEN[r && r.formation] || 30, total: r && Number(r.price) > 0 ? Number(r.price) : TOTAL, t1: r && r.t1 != null ? Number(r.t1) : T1, free: r && r.free_days != null ? Number(r.free_days) : FREE_DAYS, t1days: r && r.t1_days != null ? Number(r.t1_days) : T1_DAYS });
 const pricesMap = async () => { const m = {}; try { must(await db.from("formation_cfg").select("*")).forEach(r => { m[Number(r.id)] = pricingOf(r); }); } catch (e) { /* tarifs par défaut */ } if (!m[1]) m[1] = pricingOf(null); return m; };
 const cohortMap = async () => { const m = {}; must(await studentsC("num")).forEach(x => { m[x.num] = Number(x.cohort) || 1; }); return m; };
 const prc = async num => withT1(modPr((await fcfg(await cohortOf(num))).pr, await trackOf(num)), await t1Of(num));
@@ -169,8 +170,8 @@ const readPricing = d => {
   const total = Math.round(+d.price), t1 = Math.round(+d.t1 || 0), free = Math.round(+d.free), t1days = Math.round(+d.t1days || 0);
   if (!(total >= 100 && total <= 10000000)) throw E("Prix total invalide (au moins 100 FCFA).");
   if (t1 < 0 || (t1 > 0 && t1 >= total)) throw E("La 1re tranche doit être comprise entre 1 et " + (total - 1) + " FCFA (ou 0 pour un paiement en une seule fois).");
-  if (!(free >= 0 && free <= 30)) throw E("Jours gratuits : de 0 à 30.");
-  if (t1 > 0 && !(t1days >= Math.max(1, free) && t1days <= 30)) throw E("Jours couverts par la 1re tranche : entre " + Math.max(1, free) + " et 30.");
+  if (!(free >= 0 && free <= 60)) throw E("Jours gratuits : de 0 à 60.");
+  if (t1 > 0 && !(t1days >= Math.max(1, free) && t1days <= 60)) throw E("Jours couverts par la 1re tranche : entre " + Math.max(1, free) + " et 60.");
   return { price: total, t1, free_days: free, t1_days: t1 > 0 ? t1days : free };
 };
 const cohortsList = async (all = []) => {
@@ -180,18 +181,18 @@ const cohortsList = async (all = []) => {
 };
 const fcfg = async (cid = 1) => {
   const r = must(await db.from("formation_cfg").select("*").eq("id", cid).maybeSingle()), manual = r && r.launch_at ? Number(r.launch_at) : 0, start = r && r.start_at ? Number(r.start_at) : DEFAULT_START;
-  return { launch: manual || (Date.now() >= start ? start : 0), manual: !!manual, start, adm: r ? Number(r.admin_day || 0) : 0, pr: pricingOf(r), grp: r && r.group_link || GROUP_LINK };
+  return { len: FLEN[r && r.formation] || 30, launch: manual || (Date.now() >= start ? start : 0), manual: !!manual, start, adm: r ? Number(r.admin_day || 0) : 0, pr: pricingOf(r), grp: r && r.group_link || GROUP_LINK };
 };
-const schedDay = c => c.launch ? Math.min(30, Math.floor((Date.now() - c.launch) / 864e5) + 1) : 0;
-const openDayOf = c => c.launch ? Math.min(30, Math.max(schedDay(c), c.adm)) : 0;
-const levelOf = (paid, off = 0, P = null) => { P = P || pricingOf(null); return paid >= P.total - off ? 30 : P.t1 > 0 && paid >= P.t1 ? P.t1days : P.free; };
+const schedDay = c => c.launch ? Math.min(c.len || 30, Math.floor((Date.now() - c.launch) / 864e5) + 1) : 0;
+const openDayOf = c => c.launch ? Math.min(c.len || 30, Math.max(schedDay(c), c.adm)) : 0;
+const levelOf = (paid, off = 0, P = null) => { P = P || pricingOf(null); return paid >= P.total - off ? (P.len || 30) : P.t1 > 0 && paid >= P.t1 ? P.t1days : P.free; };
 const passed30 = async num => { const ok = new Set(must(await db.from("formation_prog").select("day,grade").eq("num", String(num || ""))).filter(x => x.grade != null && Number(x.grade) >= PASSM).map(x => Number(x.day))); return courseOf(await trackOf(num)).every(x => ok.has(x.n)); }; // « terminé » = tous les jours du parcours validés (30 jours, ou ceux du module)
 const isFree = async num => !!must(await db.from("formation_free").select("num").eq("num", String(num || "")).maybeSingle());
 // Autorisation d'avancer : l'étudiant ouvre les jours 1 à « upto » sans avoir validé les précédents (table formation_skip). Jamais bloquant si la table est absente.
-const skipMap = async () => { try { const r = await db.from("formation_skip").select("*"); if (r.error) return {}; const m = {}; (r.data || []).forEach(x => { m[x.num] = { upto: Math.max(0, Math.min(30, Number(x.upto) || 0)), mode: x.mode === "compose" ? "compose" : "free", note: x.note || "", at: Number(x.at || 0) }; }); return m; } catch (e) { return {}; } };
-const skipOf = async num => { try { const r = await db.from("formation_skip").select("upto,mode").eq("num", String(num || "")).maybeSingle(); return r.error || !r.data ? { upto: 0, mode: "free" } : { upto: Math.max(0, Math.min(30, Number(r.data.upto) || 0)), mode: r.data.mode === "compose" ? "compose" : "free" }; } catch (e) { return { upto: 0, mode: "free" }; } };
+const skipMap = async () => { try { const r = await db.from("formation_skip").select("*"); if (r.error) return {}; const m = {}; (r.data || []).forEach(x => { m[x.num] = { upto: Math.max(0, Math.min(60, Number(x.upto) || 0)), mode: x.mode === "compose" ? "compose" : "free", note: x.note || "", at: Number(x.at || 0) }; }); return m; } catch (e) { return {}; } };
+const skipOf = async num => { try { const r = await db.from("formation_skip").select("upto,mode").eq("num", String(num || "")).maybeSingle(); return r.error || !r.data ? { upto: 0, mode: "free" } : { upto: Math.max(0, Math.min(60, Number(r.data.upto) || 0)), mode: r.data.mode === "compose" ? "compose" : "free" }; } catch (e) { return { upto: 0, mode: "free" }; } };
 // "gift" = accès offert : jamais exposé à l'étudiant (il voit simplement « accès complet »)
-const fInfoBase = (paid, pend, c, gift, ov, off = 0, sk = 0) => { const P = c.pr || pricingOf(null), hasT1 = P.t1 > 0 && paid >= P.t1, skO = sk && typeof sk === "object" ? sk : { upto: Number(sk) || 0, mode: "free" }, skp = (c.launch || ov) ? Math.max(0, Math.min(30, Number(skO.upto) || 0)) : 0, open = Math.min(30, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0, skp)), full = gift || paid >= P.total - off; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < 30 ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, skip: skp, skipMode: skp && skO.mode === "compose" ? "compose" : "free", openDay: open, paid, pend, level: full ? 30 : levelOf(paid, off, P), plan: full ? "complet" : hasT1 ? "tranche1" : "gratuit", remaining: !full && hasT1 ? Math.max(0, P.t1days - open) : null, freeLeft: !full && !hasT1 ? Math.max(0, P.free - open) : null, T1: P.t1, TOTAL: P.total - off, base: P.total, offer: off, free: P.free, t1days: P.t1days }; };
+const fInfoBase = (paid, pend, c, gift, ov, off = 0, sk = 0) => { const P = c.pr || pricingOf(null), LN = c.len || P.len || 30, hasT1 = P.t1 > 0 && paid >= P.t1, skO = sk && typeof sk === "object" ? sk : { upto: Number(sk) || 0, mode: "free" }, skp = (c.launch || ov) ? Math.max(0, Math.min(LN, Number(skO.upto) || 0)) : 0, open = Math.min(LN, Math.max(openDayOf(c), ov ? Number(ov.open_day || 0) : 0, skp)), full = gift || paid >= P.total - off; return { launched: !!c.launch || !!ov, startAt: c.start, now: Date.now(), nextAt: c.launch && schedDay(c) < LN ? c.launch + schedDay(c) * 864e5 : 0, early: !!ov, skip: skp, skipMode: skp && skO.mode === "compose" ? "compose" : "free", openDay: open, paid, pend, level: full ? LN : levelOf(paid, off, P), len: LN, plan: full ? "complet" : hasT1 ? "tranche1" : "gratuit", remaining: !full && hasT1 ? Math.max(0, P.t1days - open) : null, freeLeft: !full && !hasT1 ? Math.max(0, P.free - open) : null, T1: P.t1, TOTAL: P.total - off, base: P.total, offer: off, free: P.free, t1days: P.t1days }; };
 // Module : les jours du module sont comptés à partir de 1 (jour 1 du module), puis ramenés aux numéros réels du cours (ex. module web = jours 15 à 29).
 const fInfo = (paid, pend, c, gift, ov, off = 0, sk = 0, T = null) => {
   if (!T || !T.module) return { ...fInfoBase(paid, pend, c, gift, ov, off, sk), formation: T ? T.formation : curT().formation, module: null };
@@ -236,8 +237,8 @@ async function fctx(d, c, key, max = 300) {
   let adm = false; if (d.token) { try { check(d.token, "a"); adm = true; } catch (e) { adm = false; } }
   const cfg = await fcfg(), pm = {}, cols = "day,sub,grade,gp,gt,comment,att,gat";
   if (adm && !d.num) { // aperçu administrateur : tout est ouvert, lecture seule
-    for (let i = 1; i <= 30; i++) pm[i] = null;
-    return { s: { num: "APERCU", nom: "Aperçu", prenoms: "Administrateur" }, fx: { ...fInfo(0, 0, cfg, true), launched: true, openDay: 30, preview: true }, pm, ro: true };
+    for (let i = 1; i <= (cfg.len || 30); i++) pm[i] = null;
+    return { s: { num: "APERCU", nom: "Aperçu", prenoms: "Administrateur" }, fx: { ...fInfo(0, 0, cfg, true), launched: true, openDay: cfg.len || 30, preview: true }, pm, ro: true };
   }
   const s = adm ? must(await db.from("students").select("num,nom,prenoms").eq("num", String(d.num).toUpperCase().slice(0, 30)).maybeSingle()) : await findStudent(d.num, d.id, "num,nom,prenoms");
   if (!s) throw E(adm ? "Étudiant introuvable." : "Numéro ou identifiant incorrect.", 404);
@@ -713,7 +714,7 @@ const A = {
   async fDay(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fd"), n = needDay(d, fx, pm), L = CT.lessons[n], Q = quizOf(n);
     const r = must(await db.from("formation_prog").select("*").eq("num", s.num).eq("day", n).maybeSingle());
-    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], docs: [], purged: 0 } : await vidsFor(s.num, n); return { form: curT().formation, mod: fx.mod ? { from: fx.mod.from, to: fx.mod.to } : null, view: dayAcc(n, fx, pm) === "view", vids: V.list, docs: V.docs || [], vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
+    const R = r && r.grade != null ? await rankInfo(await cohortOf(s.num)) : null, tc = CT.teach[n] || {}; const V = s.num === "APERCU" ? { list: [], docs: [], purged: 0 } : await vidsFor(s.num, n); return { form: curT().formation, len: fx.len || 30, mod: fx.mod ? { from: fx.mod.from, to: fx.mod.to } : null, view: dayAcc(n, fx, pm) === "view", vids: V.list, docs: V.docs || [], vidsPurged: V.purged, rk: R ? R.dayRank(n, r.grade) : null, dayAvg: R && R.dayAvg[n] != null ? R.dayAvg[n] : null, day: dayDef(n), lesson: L ? { parts: L.parts } : null, quiz: Q ? qpub(Q) : null, sites: CT.sites, rec: recOut(r), crit: { b: tc.b || [], a: tc.a || "" }, media: await mediaFor(n, s.num, s.num === "APERCU"), ro: !!ro };
   },
   // ---------- Formation : vidéos et images des cours (administrateur, droit « cours et notes ») ----------
   async fMediaList(d) {
@@ -722,7 +723,7 @@ const A = {
   },
   async fMediaInit(d) { // étape 1 : réserve l'emplacement et donne une adresse d'envoi signée (le fichier ne passe pas par le serveur)
     check(d.token, "a"); const day = Math.round(+d.day), mt = String(d.mime || "").toLowerCase(), M = MMIME[mt], size = Math.round(+d.size);
-    if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
+    if (!(day >= 1 && day <= 60)) throw E("Jour invalide.");
     if (!M) throw E("Format non accepté. Audio : MP3, M4A, WAV, OGG ou AAC. Vidéo : MP4, WebM ou MOV. Image : JPG, PNG, WEBP ou GIF.");
     if (!(size > 0 && size <= MMAX)) throw E("Fichier trop gros (" + Math.round(MMAX / 1048576) + " Mo maximum).");
     const id = rnd(12), path = id + "." + M[1], title = String(d.title || "").trim().slice(0, 120);
@@ -738,7 +739,7 @@ const A = {
   async fMediaSet(d) {
     check(d.token, "a"); const id = String(d.id || "").slice(0, 20), x = must(await db.from("formation_media").select("id").eq("id", id).maybeSingle()); if (!x) throw E("Média introuvable.", 404);
     const up = {}; if (d.title != null) up.title = String(d.title).trim().slice(0, 120);
-    if (d.day != null) { const day = Math.round(+d.day); if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30)."); up.day = day + NK(); }
+    if (d.day != null) { const day = Math.round(+d.day); if (!(day >= 1 && day <= 60)) throw E("Jour invalide."); up.day = day + NK(); }
     let unknown = [];
     if (d.vis != null) { if (!["off", "all", "some"].includes(d.vis)) throw E("Visibilité invalide."); up.vis = d.vis; }
     if (d.nums != null) { const want = mNums(d.nums), have = new Set(must(await db.from("students").select("num")).map(s => s.num)); up.nums = want.filter(n => have.has(n)); unknown = want.filter(n => !have.has(n)); }
@@ -810,7 +811,7 @@ const A = {
   },
   async fPurge(d, ctx) { // libère de l'espace : supprime les vidéos et/ou les images. Ne touche JAMAIS aux notes, commentaires, bulletin, attestation, réponses écrites, codes ni questions théoriques.
     check(d.token, "a"); const kind = ["videos", "images", "both"].includes(d.kind) ? d.kind : ""; if (!kind) throw E("Choisissez ce qu'il faut supprimer.");
-    const day = d.day ? Math.round(+d.day) : null; if (day != null && !(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
+    const day = d.day ? Math.round(+d.day) : null; if (day != null && !(day >= 1 && day <= 60)) throw E("Jour invalide.");
     const before = d.before ? Date.parse(String(d.before).slice(0, 10) + "T00:00:00+01:00") : null; if (d.before && isNaN(before)) throw E("Date invalide.");
     let nums = null; if (d.num) nums = [String(d.num).toUpperCase().slice(0, 30)]; else if (d.cohort_only) { const cid = Math.round(+d.cohort) || 1; nums = must(await studentsC("num")).filter(x => (Number(x.cohort) || 1) === cid).map(x => x.num); if (!nums.length) nums = ["-"]; }
     const ok = (r, atK) => (!nums || nums.includes(r.num)) && (day == null || Number(r.day) === day) && (before == null || Number(r[atK] || 0) < before);
@@ -851,7 +852,7 @@ const A = {
     const names = hasP(ctx, "students"), OFS = await offersMap(), T1X = await t1Map(), PMX = await pricesMap(), RK = rankFrom(subs), SKM = await skipMap(), TMX = await trackMap();
     return { stats: { classAvg: RK.classAvg, nr: RK.nr, dayAvg: RK.dayAvg }, cohort: cid, cohorts: await cohortsList(all), me: { name: ctx.who.name, root: ctx.who.root, perms: ctx.who.root ? Object.keys(PERMS) : ctx.who.pm }, cfg: { now: Date.now(), launch: c.launch, manual: c.manual, start: c.start, adm: c.adm, sched: schedDay(c), openDay: openDayOf(c) },
       subs: !hasP(ctx, "f_corr") ? [] : subs.filter(r => r.sub).map(r => ({ num: r.num, name: names ? (name[r.num] || r.num) : r.num, day: r.day, sub: Number(r.sub), grade: r.grade == null ? null : Number(r.grade), gt: r.gt == null ? null : Number(r.gt), gp: r.gp == null ? null : Number(r.gp), att: Number(r.att || 0), gat: Number(r.gat || 0), title: (dayDef(r.day) || {}).title || "" })),
-      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, wa: names ? x.wa || "" : "", email: names ? x.email || "" : "", termine: !!x.termine, since: Number(x.date || 0), paid, free: gifts.has(x.num), level: gifts.has(x.num) ? 30 : (() => { const TK = TMX[x.num] || DEF_TRACK, L0 = levelOf(paid, OFS[x.num] || 0, withT1(modPr(PMX[Number(x.cohort) || 1], TK), T1X[x.num])); return TK.module ? (L0 >= 30 ? 30 : L0 + MODS[TK.module].from - 1) : L0; })(), req: courseOf(TMX[x.num] || DEF_TRACK).length, mod: (TMX[x.num] || DEF_TRACK).module, form: (TMX[x.num] || DEF_TRACK).formation, done: subs.filter(r => r.num === x.num && passedRow(r) && inMod(Number(r.day), TMX[x.num] || DEF_TRACK)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num), skip: SKM[x.num] ? SKM[x.num].upto : 0, skipMode: SKM[x.num] ? SKM[x.num].mode : "free", skipDone: SKM[x.num] ? subs.filter(r => r.num === x.num && r.day <= SKM[x.num].upto && passedRow(r)).length : 0, skipNote: SKM[x.num] ? SKM[x.num].note : "", skipAt: SKM[x.num] ? SKM[x.num].at : 0 }; }) };
+      students: !hasP(ctx, "f_view") ? [] : st.map(x => { const paid = sum(pays.filter(p => p.num === x.num), "valide"); return { num: x.num, name: names ? x.nom + " " + x.prenoms : x.num, wa: names ? x.wa || "" : "", email: names ? x.email || "" : "", termine: !!x.termine, since: Number(x.date || 0), paid, free: gifts.has(x.num), level: gifts.has(x.num) ? FLEN[(TMX[x.num] || DEF_TRACK).formation] : (() => { const TK = TMX[x.num] || DEF_TRACK, L0 = levelOf(paid, OFS[x.num] || 0, withT1(modPr(PMX[Number(x.cohort) || 1], TK), T1X[x.num])); return TK.module ? (L0 >= 30 ? 30 : L0 + MODS[TK.module].from - 1) : L0; })(), req: courseOf(TMX[x.num] || DEF_TRACK).length, mod: (TMX[x.num] || DEF_TRACK).module, form: (TMX[x.num] || DEF_TRACK).formation, done: subs.filter(r => r.num === x.num && passedRow(r) && inMod(Number(r.day), TMX[x.num] || DEF_TRACK)).length, avg: RK.avg[x.num] != null ? RK.avg[x.num] : null, rank: RK.genRank(x.num), skip: SKM[x.num] ? SKM[x.num].upto : 0, skipMode: SKM[x.num] ? SKM[x.num].mode : "free", skipDone: SKM[x.num] ? subs.filter(r => r.num === x.num && r.day <= SKM[x.num].upto && passedRow(r)).length : 0, skipNote: SKM[x.num] ? SKM[x.num].note : "", skipAt: SKM[x.num] ? SKM[x.num].at : 0 }; }) };
   },
   async fSub(d, c) {
     check(d.token, "a"); const n = Math.round(+d.day), x = dayDef(n), num = String(d.num || "").slice(0, 30);
@@ -869,7 +870,7 @@ const A = {
   },
   async fGradeBulk(d) { // même note de travail pour plusieurs remises (sélection ou toutes les remises affichées)
     check(d.token, "a"); const g = Number(d.gp); if (!(g >= 0 && g <= 20)) throw E("Note invalide (0 à 20).");
-    const items = (Array.isArray(d.items) ? d.items : []).map(x => ({ num: String(x && x.num || "").slice(0, 30), day: Math.round(+(x && x.day)) })).filter(x => x.num && x.day >= 1 && x.day <= 30);
+    const items = (Array.isArray(d.items) ? d.items : []).map(x => ({ num: String(x && x.num || "").slice(0, 30), day: Math.round(+(x && x.day)) })).filter(x => x.num && x.day >= 1 && x.day <= 60);
     if (!items.length) throw E("Aucun travail à noter."); if (items.length > 1000) throw E("1000 travaux maximum à la fois.");
     let done = 0, skipped = 0; for (const it of items) { const fin = await gradeOne(it.num, it.day, g, d.comment); if (fin == null) skipped++; else done++; }
     return { ok: true, done, skipped };
@@ -925,7 +926,7 @@ const A = {
   },
   async fSetDay(d) {
     check(d.token, "a"); const cid = Math.round(+d.cohort) || 1, c = await fcfg(cid); if (!c.launch) throw E("La formation n'est pas encore ouverte : ouvrez-la d'abord.");
-    must(await db.from("formation_cfg").upsert({ id: cid, admin_day: Math.max(0, Math.min(30, Math.round(+d.day) || 0)) })); return { ok: true };
+    must(await db.from("formation_cfg").upsert({ id: cid, admin_day: Math.max(0, Math.min(60, Math.round(+d.day) || 0)) })); return { ok: true };
   },
   async fSetStart(d) { // date de démarrage automatique (minuit, heure du Bénin)
     check(d.token, "a"); const cid = Math.round(+d.cohort) || 1, t = Date.parse(String(d.date || "").slice(0, 10) + "T00:00:00+01:00"); if (isNaN(t)) throw E("Date invalide.");
@@ -943,7 +944,7 @@ const A = {
       return { ok: true, n, skipped: nums.length - n };
     }
     if (!d.on) { for (const ch of chunks) { const r = await db.from("formation_skip").delete().in("num", ch); if (r.error) throw miss(r.error); } return { ok: true, n: nums.length }; } // rétablissement n°1 : règle normale
-    const day = Math.round(+d.day); if (!(day >= 1 && day <= 30)) throw E("Jour invalide (1 à 30).");
+    const day = Math.round(+d.day); if (!(day >= 1 && day <= 60)) throw E("Jour invalide.");
     const known = new Set(); for (const ch of chunks) must(await db.from("students").select("num").in("num", ch)).forEach(x => known.add(x.num));
     const note = String(d.note || "").slice(0, 200), at = Date.now(), rows = nums.filter(n => known.has(n)).map(num => ({ num, upto: day, mode: "free", note, at }));
     if (!rows.length) throw E("Aucun étudiant valide dans la sélection.", 404);
@@ -960,7 +961,7 @@ const A = {
     check(d.token, "a"); const num = String(d.num || "").toUpperCase().slice(0, 30);
     if (!d.on) { must(await db.from("formation_access").delete().eq("num", num)); return { ok: true }; }
     if (!must(await db.from("students").select("num").eq("num", num).maybeSingle())) throw E("Aucun étudiant avec ce numéro.", 404);
-    must(await db.from("formation_access").upsert({ num, open_day: Math.max(1, Math.min(30, Math.round(+d.day) || 30)), note: String(d.note || "").slice(0, 200), at: Date.now() })); return { ok: true };
+    must(await db.from("formation_access").upsert({ num, open_day: Math.max(1, Math.min(60, Math.round(+d.day) || 60)), note: String(d.note || "").slice(0, 200), at: Date.now() })); return { ok: true };
   },
 };
 
