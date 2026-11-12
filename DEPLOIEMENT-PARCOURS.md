@@ -74,3 +74,10 @@ Avant l'étape 1, le site continue de fonctionner comme avant (l'inscription cla
 - Réglable sans code via la variable Vercel `PRIX_INFO_MODULES` (ex. `{"4":17000}`).
 - Aucune migration SQL : la colonne `students.module` stocke par exemple `m1,m3`.
 - Reçu : après paiement, seul le lien du forum VIP est affiché.
+
+## Navigation directe, clavier et reprise (fichier `mk-ux.js`)
+- **Chaque bouton mène à sa section** : menus, onglets (site, administration, formation) et boutons qui affichent un contenu amènent l'écran directement sur la section concernée, au lieu de laisser la page à la même hauteur.
+- **Utilisable au clavier** : Tab / Maj+Tab, Entrée ou Espace sur tout ce qui est cliquable (cartes du tableau de bord, images à agrandir…), flèches ← → dans les menus et onglets, Échap pour fermer une fenêtre (fiche étudiant, image…), « / » pour aller à la recherche, « ? » pour l'aide. Un bouton « Aller au contenu principal » apparaît à la première pression sur Tab. Le focus reste dans les fenêtres ouvertes et revient au bouton d'origine à la fermeture.
+- **Reprendre là où on était** : le site mémorise sur l'appareil la page et la position exacte. À la réouverture, l'application installée revient directement au dernier endroit ; dans un navigateur, un bandeau « ↩ Reprendre là où vous étiez » est proposé. Le bouton Retour et l'actualisation de la page ramènent aussi à la position précédente (même après une reconnexion).
+- Les onglets de l'administration figurent maintenant dans l'adresse (`#/adminmelchi97/pay`, `/list`…) et l'onglet de l'administration de la formation est mémorisé.
+- Fichiers : ajouté `mk-ux.js` ; modifiés `index.html`, `formation.html` (une ligne chacun pour charger le script + mémorisation des onglets). Aucun SQL, aucune variable Vercel.

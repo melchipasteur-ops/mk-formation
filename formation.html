@@ -13,6 +13,7 @@
 <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <script src="/dialogs.js"></script>
+<script src="/mk-ux.js" defer></script>
 <script src="/pwa.js" defer></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -288,7 +289,7 @@ function site(F){const ks=Object.keys(F),g=f=>F[f.replace(/^\.\//,"")];let m=F["
 
 window.FORMK="creation";const web=n=>window.FORMK=="creation"&&n>=16&&n<=25,php=n=>window.FORMK=="creation"&&n>=26&&n<=29,DEF=n=>php(n)?"index.php":"index.html",PM=14,WT=0.3;
 const fmt=n=>Number(n||0).toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g," ")+" FCFA";
-let CLK=0,CR=null,ST=null,CUR=null,QR=null,tm=0,armed=0,curFile="",AS=null,ATAB="dash";
+let CLK=0,CR=null,ST=null,CUR=null,QR=null,tm=0,armed=0,curFile="",AS=null,ATAB=(()=>{try{return localStorage.getItem("mk_atab")||"dash"}catch(e){return"dash"}})();
 const WK={"Module 1":"#2563eb","Module 2":"#7c3aed","Module 3":"#0d9488","Module 4":"#ea580c","Module 5":"#db2777","Module 6":"#ca8a04","Module 7":"#dc2626","Module 8":"#0891b2","Semaine 1":"#2563eb","Semaine 2":"#7c3aed","Semaine 3":"#0d9488","Semaine 4":"#ea580c"},WN0={"Semaine 1":"Images, personnages et animation","Semaine 2":"Vidéo IA professionnelle et montage","Semaine 3":"HTML et CSS","Semaine 4":"JavaScript et PHP"},WNI={"Module 1":"Fondations : ordinateur, Windows et Internet","Module 2":"Word : documents professionnels","Module 3":"Excel : calculs et fonctions","Module 4":"Excel : données, analyse et gestion","Module 5":"PowerPoint : présenter avec impact","Module 6":"Outils professionnels et collaboration","Module 7":"Réseaux, sécurité et maintenance","Module 8":"Spécialisation et insertion professionnelle"},WN=new Proxy({},{get:(_,k)=>WNI[k]||WN0[k]});
 const fdl=t=>new Date(t).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric",timeZone:"Africa/Porto-Novo"});
 const ring=p=>{const r=38,c=2*Math.PI*r;return `<div class="ring"><svg viewBox="0 0 92 92" width="92" height="92"><circle cx="46" cy="46" r="${r}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="9"/><circle cx="46" cy="46" r="${r}" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(c*p/100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 46 46)"/></svg><b>${Math.round(p)}%</b></div>`};
@@ -1113,7 +1114,7 @@ async function admin(){if(!AT()){app.innerHTML=`<div class="hero"><img class="lo
  if(!tabs.length){app.innerHTML=`<div class="card"><h2>Aucun droit pour la formation</h2><p>Demandez à l'administrateur principal de vous accorder un accès.</p><p><a href="/"><button class="s">Retour au site</button></a></p></div>`;return}
  if(!tabs.some(x=>x[0]==ATAB))ATAB=tabs[0][0];
  app.innerHTML=admBar()+`<div class="top"><h1>🎓 Formation</h1><small>Connecté : ${esc(ME.name)} · ${(S.cohorts||[]).some(c=>c.id==S.cohort&&c.formation=="informatique")?"💻 Promotion Informatique (60 jours)":"🎬📱 Promotion Création vidéo &amp; web (30 jours)"}</small></div>${(S.cohorts||[]).length>1?`<div class="card np"><label>📆 Promotion affichée</label><select onchange="COH=+this.value;admin()">${S.cohorts.map(c=>`<option value="${c.id}" ${c.id==S.cohort?"selected":""}>${c.formation=="informatique"?"💻 Informatique":"🎬📱 Création"} · ${esc(c.name)} · début ${fdl(c.start)} · ${c.n} étudiant(s)${c.registering?" · inscriptions ouvertes ici":""}</option>`).join("")}</select><small>Le lancement, l’ouverture des jours et les travaux ci-dessous concernent uniquement cette promotion.</small></div>`:""}${(()=>{const pc=has("f_corr")?S.subs.filter(x=>x.grade==null).length:0,GR=[["📊 Suivi",["dash","stu","res"]],["✅ Correction"+(pc?" ("+pc+")":""),["note","lib","skip"]],["📚 Contenu du cours",["crs","med"]],["🎁 Accès offerts",["gift"]]].map(([l,ks])=>({l,t:tabs.filter(x=>ks.includes(x[0]))})).filter(g=>g.t.length),AG=GR.find(g=>g.t.some(x=>x[0]==ATAB))||GR[0];return `<div class="tabs">${GR.map(g=>`<button class="${g===AG?"on":""}" onclick="ATAB='${g.t[0][0]}';admin()">${g.l}</button>`).join("")}</div>${AG.t.length>1?`<div class="tabs sub">${AG.t.map(([k,l])=>`<button class="${ATAB==k?"on":""}" onclick="ATAB='${k}';admin()">${l}</button>`).join("")}</div>`:""}`})()}<div id="ab"></div>`;
- AS=S;({dash:dashTab,note:noteTab,stu:stuTab,skip:skipTab,lib:libTab,res:resTab,crs:crsTab,med:mediaTab,gift:giftTab})[ATAB](S)}
+ try{localStorage.setItem("mk_atab",ATAB)}catch(e){}AS=S;({dash:dashTab,note:noteTab,stu:stuTab,skip:skipTab,lib:libTab,res:resTab,crs:crsTab,med:mediaTab,gift:giftTab})[ATAB](S)}
 
 /* ===== Vidéos et images des cours ===== */
 const mKind=m=>m.kind=="image"?"Image":m.kind=="audio"?"Audio":"Vidéo";

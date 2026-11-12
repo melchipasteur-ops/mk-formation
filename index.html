@@ -13,6 +13,7 @@
 <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <script src="/dialogs.js"></script>
+<script src="/mk-ux.js" defer></script>
 <script src="/pwa.js" defer></script>
 
 <style>
@@ -499,7 +500,7 @@ const waMsg=s=>encodeURIComponent(s.phase=="inscrit"?"Bonjour "+fullName(s)+", m
 function modal(src){const m=document.createElement("div");m.className="modal";m.onclick=()=>m.remove();m.innerHTML=`<img src="${src}" alt="">`;document.body.appendChild(m)}
 async function showShot(id,role){try{const r=await api(role=="a"?"pimg":"pshot",{id},role);modal(r.data)}catch(e){alert(e.message)}}
 async function showPhoto(num){try{const r=await api("img",{num},"a");modal(r.data)}catch(e){alert(e.message)}}
-const tabTo=t=>{session.tab=t;admin();return false};
+const tabTo=t=>{session.tab=t;const h="#/adminmelchi97/"+t;if(location.hash!==h)location.hash=h;else admin();return false};
 const pf=s=>(!session.pc||s.cohort==session.pc)&&(!session.lp||(session.lp=="direct"?!s.partner:s.partner==session.lp));
 const LS=()=>S.students.filter(pf);
 function partSel(){const c=id=>S.students.filter(s=>id=="direct"?!s.partner:s.partner==id).length;
@@ -534,7 +535,7 @@ async function bulkDel(){const nums=[...SEL];if(!nums.length)return alert("Séle
  try{for(let i=0;i<ok.length;i+=40){const r=await api("bulkDelStudents",{nums:ok.slice(i,i+40),id:"lot de "+Math.min(40,ok.length-i)},"a");del+=r.deleted.length;kept+=r.kept.length}
   SEL.clear();await admin();alert("✔ "+del+" étudiant(s) supprimé(s)."+(kept+prot.length?"\n🔒 "+(kept+prot.length)+" conservé(s) car protégés.":""))}
  catch(e){alert(e.message+"\n\n"+del+" déjà supprimé(s). La liste va être actualisée.");await admin()}}
-const goList=k=>{SEL.clear();session.lk=k;session.tab="list";admin()};
+const goList=k=>{SEL.clear();session.lk=k;tabTo("list")};
 const pendCount=()=>(S.payments||[]).filter(x=>x.st=="attente").length;
 /* ===== Fiche étudiant : toutes les actions d'un étudiant, groupées, accessibles de partout ===== */
 let SM=null;
