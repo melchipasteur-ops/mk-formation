@@ -59,6 +59,7 @@ textarea{min-height:96px;resize:vertical}label{display:block;font-weight:700;mar
 .tabs{display:flex;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;padding:8px;margin:10px 0;background:var(--c);border:1px solid var(--b);border-radius:16px;box-shadow:var(--sh);overflow-x:auto}
 .tabs.sub{position:static;margin:-4px 0 10px;box-shadow:none;background:transparent;border-style:dashed}.tabs.sub button{min-height:34px;font-size:13px}.tabs button{flex:1;white-space:nowrap;background:transparent;color:var(--m);box-shadow:none;min-height:40px}.tabs button.on{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;box-shadow:0 6px 14px rgba(79,70,229,.3)}
 /* ---- encadrés ---- */
+.shotfig{margin:14px 0;padding:10px;background:#eef2f7;border-radius:14px;border:1px solid var(--b)}.shotfig svg{border-radius:8px;box-shadow:0 2px 10px rgba(15,23,42,.12)}.shotfig figcaption{font-size:.92em;margin-top:8px;line-height:1.45}.shotsrc{display:block;color:var(--m);font-size:.8em;margin-top:2px}.dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.dl>div{border:1px solid var(--b);border-radius:12px;padding:10px 12px;background:var(--c)}.dlh{display:block;font-weight:700;margin-bottom:4px}@media(max-width:620px){.dl{grid-template-columns:1fr}}.note.warn{border-left-color:var(--w);background:rgba(217,119,6,.08)}ol.stp>li{margin:8px 0 10px}.okv{font-size:.92em;color:var(--ok);margin-top:4px}
 .note{border-left:5px solid var(--p);background:rgba(11,111,207,.07);padding:12px 14px;border-radius:12px;margin:12px 0}
 .note.warn{border-color:var(--w);background:rgba(217,119,6,.10)}.note.bad{border-color:var(--e);background:rgba(220,38,38,.09)}.note.good{border-color:var(--ok);background:rgba(22,163,74,.10)}.note.prof{border-color:var(--p2);background:rgba(124,58,237,.09)}
 .tool{border:1px solid var(--b);border-radius:14px;padding:12px;margin:10px 0;background:var(--bg)}
@@ -587,8 +588,449 @@ sc_ppt:()=>cards([["Création",["Ctrl + M diapositive","Ctrl + D dupliquer","F4 
 });
 
 })();
+/* ===== Reproductions d'écran Windows 11 / Microsoft 365 (SHOT) ===== */
+const SHOT=(()=>{
+const FONT="'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,Roboto,'Helvetica Neue',Arial,sans-serif";
+const X=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const EMO=/[\u{1F000}-\u{1FAFF}\u2190-\u21FF\u2300-\u23FF\u2460-\u27BF\u2B00-\u2BFF]/u;
+const tw=(s,z=12)=>{let w=0;for(const ch of String(s==null?"":s)){w+=EMO.test(ch)?1.2:/[MWÉÈÀ@%&mw]/.test(ch)?.8:/[A-ZÂÊÎÔÛÇ0-9]/.test(ch)?.62:/[iljtfI.,;:'’ !|()\[\]]/.test(ch)?.3:.53}return w*z};
+const fit=(s,w,z=12)=>{s=String(s==null?"":s);if(tw(s,z)<=w)return s;while(s.length>1&&tw(s+"…",z)>w)s=s.slice(0,-1);return s+"…"};
+const ACC={word:"#185abd",excel:"#107c41",ppt:"#c43e1c",outlook:"#0f6cbd",access:"#a4373a",onenote:"#7719aa"};
+const LET={word:"W",excel:"X",ppt:"P",outlook:"O",access:"A",onenote:"N"};
+const NAME={word:"Word",excel:"Excel",ppt:"PowerPoint",outlook:"Outlook",access:"Access",onenote:"OneNote"};
+const BLUE="#0067c0",HI="#e3008c",SEL="#cce8ff",TX="#1b1b1b",MU="#616161",BD="#d6d6d6",BG="#f3f3f3";
+let BX,W;
+const nm=s=>String(s).toLowerCase().replace(/[\s\u00a0]+/g," ").replace(/[’']/g,"'").trim();
+const reg=(l,x,y,w,h)=>{if(l==null||l==="")return;const k=nm(l);(BX[k]=BX[k]||[]).push([x,y,w,h])};
+const r=(x,y,w,h,f="#fff",s="none",rr=4,sw=1,ex="")=>`<rect x="${+x.toFixed?x.toFixed(1):x}" y="${+y.toFixed?y.toFixed(1):y}" width="${Math.max(0,w).toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="${rr}" fill="${f}" stroke="${s}" stroke-width="${sw}"${ex}/>`;
+const t=(x,y,s,o={})=>`<text x="${(+x).toFixed(1)}" y="${(+y).toFixed(1)}" font-size="${o.z||12}" fill="${o.c||TX}"${o.b?` font-weight="${o.b===true?600:o.b}"`:""}${o.a?` text-anchor="${o.a}"`:""}${o.i?' font-style="italic"':""}${o.u?' text-decoration="underline"':""}${o.m?' font-family="Consolas,Menlo,monospace"':""}>${X(s)}</text>`;
+const ln=(x1,y1,x2,y2,c=BD,w=1,d="")=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}"${d?` stroke-dasharray="${d}"`:""}/>`;
+const ci=(x,y,rr,f,s="none",sw=1)=>`<circle cx="${x}" cy="${y}" r="${rr}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>`;
+const sh=(x,y,w,h,rr=8)=>r(x+1,y+3,w,h,"#000","none",rr,0,' fill-opacity=".13"')+r(x,y+1,w,h,"#000","none",rr,0,' fill-opacity=".08"');
+const appIcon=(x,y,app,s=16)=>ACC[app]?r(x,y,s,s,ACC[app],"none",3)+t(x+s/2,y+s*.73,LET[app],{z:s*.62,c:"#fff",b:700,a:"middle"}):"";
+const toggle=(x,y,on,lbl)=>{reg(lbl,x-4,y-4,48,28);return r(x,y,40,20,on?BLUE:"#fff",on?BLUE:"#8a8a8a",10,1)+ci(on?x+30:x+10,y+10,on?6:5,on?"#fff":"#5c5c5c")};
+const chk=(x,y,on)=>r(x,y,16,16,on?BLUE:"#fff",on?BLUE:"#8a8a8a",3)+(on?t(x+8,y+13,"✓",{z:13,c:"#fff",a:"middle",b:700}):"");
+const radio=(x,y,on)=>ci(x+8,y+8,8,"#fff",on?BLUE:"#8a8a8a",1.2)+(on?ci(x+8,y+8,4,BLUE):"");
+const winBtns=(y,c=TX,h=30)=>t(W-112,y+h/2+5,"─",{z:12,c})+t(W-70,y+h/2+5,"☐",{z:13,c})+t(W-26,y+h/2+5,"✕",{z:12,c,a:"middle"});
 
-function lessonHTML(){const L=CUR.D.lesson;if(!L)return"";return L.parts.map((p,i)=>`<div class="card"><small>Partie ${i+1} sur ${L.parts.length}</small><h2>${esc(p.t)}</h2>${(p.p||[]).map(x=>`<p>${md(x)}</p>`).join("")}${p.img&&IMG[p.img]?`<div class="fig">${IMG[p.img]()}</div>`:""}${p.steps?`<ol>${p.steps.map(x=>`<li>${md(x)}</li>`).join("")}</ol>`:""}${p.code?`<small>📄 ${esc(p.file||"")}</small><pre>${esc(p.code)}</pre><div class="row">${cpBtn(p.code)}${p.run||p.pv?`<button class="s" data-t="▶ Voir le résultat" onclick="runLesson(${i},this)">▶ Voir le résultat</button>`:""}</div>${p.run||p.pv?`<iframe class="lv ${p.mob?"mob":""}" id="lv${i}" sandbox="allow-scripts" title="Résultat"></iframe>`:""}`:""}${p.tip?`<div class="note">💡 ${md(p.tip)}</div>`:""}</div>`).join("")}
+/* ---------- icônes des boutons du ruban ---------- */
+const IC={"Coller":"📋","Couper":"✂","Copier":"⧉","Reproduire la mise en forme":"🖌","G":"G","I":"I","S":"S","Couleur de police":"A","Surlignage":"🖍","Puces":"☰","Numérotation":"⒈","Aligner à gauche":"⫷","Centrer":"≡","Aligner à droite":"⫸","Justifier":"☰","Interligne":"↕","Afficher tout":"¶","Rechercher":"🔍","Remplacer":"⇄","Sélectionner":"⬚","Page de garde":"📄","Page vierge":"🗋","Saut de page":"⤓","Tableau":"▦","Images":"🖼","Formes":"◆","Icônes":"☺","SmartArt":"⧉","Graphique":"📊","En-tête":"▔","Pied de page":"▁","Numéro de page":"#","Zone de texte":"A▭","WordArt":"𝒜","Lettrine":"A","Équation":"π","Symbole":"Ω","Marges":"▣","Orientation":"⤾","Taille":"🗋","Colonnes":"▥","Sauts de page":"⤓","Retrait":"⇥","Espacement":"↕","Position":"⊞","Habillage":"⤶","Aligner":"⫷","Grouper":"⧉","Thèmes":"Aa","Couleurs":"🎨","Polices":"A","Filigrane":"💧","Couleur de page":"🎨","Bordures de page":"▢","Table des matières":"☰","Mettre à jour la table":"⟳","Insérer une note de bas de page":"ab¹","Insérer une citation":"❝","Insérer une légende":"🏷","Renvoi":"↪","Démarrer la fusion et le publipostage":"✉","Sélection des destinataires":"👥","Insérer un champ de fusion":"«»","Aperçu des résultats":"👁","Terminer et fusionner":"✔","Grammaire et orthographe":"✓","Statistiques":"123","Traduire":"🌐","Nouveau commentaire":"💬","Suivi des modifications":"✎","Accepter":"✔","Refuser":"✖","Restreindre la modification":"🔒","Mode Lecture":"📖","Page":"🗋","Règle":"📏","Quadrillage":"▦","Volet de navigation":"☰","Zoom":"🔍","Nouvelle fenêtre":"🗗","Fractionner":"⬓","Bordures":"▦","Couleur de remplissage":"🪣","Renvoyer à la ligne automatiquement":"↩","Fusionner et centrer":"⬌","Format Nombre Comptabilité":"€","Pourcentage":"%","Séparateur de milliers":"000","Ajouter une décimale":".0","Réduire les décimales":".00","Mise en forme conditionnelle":"▤","Mettre sous forme de tableau":"▦","Styles de cellules":"▧","Insérer":"⊞","Supprimer":"⊟","Format":"⬚","Somme automatique":"Σ","Remplissage":"⬇","Effacer":"⌫","Trier et filtrer":"⇅","Rechercher et sélectionner":"🔍","Tableau croisé dynamique":"▦","Graphiques recommandés":"📊","Histogramme":"📊","Courbes":"📈","Secteurs":"◔","Barres":"▤","Graphique croisé dynamique":"📊","Segment":"⧉","Chronologie":"🗓","Lien":"🔗","Insérer une fonction":"fx","Récemment utilisées":"★","Financier":"€","Logique":"?","Texte":"A","Date et heure":"🕒","Recherche et référence":"🔍","Maths et trigonométrie":"θ","Gestionnaire de noms":"🏷","Définir un nom":"🏷","Repérer les antécédents":"↖","Repérer les dépendants":"↘","Afficher les formules":"fx","Vérification des erreurs":"⚠","Évaluation de formule":"fx","Options de calcul":"⚙","Obtenir des données":"⬇","Actualiser tout":"⟳","Trier de A à Z":"A↓","Trier de Z à A":"Z↓","Trier":"⇅","Filtrer":"⏷","Convertir":"⇉","Remplissage instantané":"⚡","Supprimer les doublons":"⧉","Validation des données":"✔","Consolider":"⊕","Analyse de scénarios":"?","Grouper ":"[+]","Sous-total":"Σ","Zone d'impression":"⬚","Imprimer les titres":"▤","Orthographe":"✓","Protéger la feuille":"🔒","Protéger le classeur":"🔒","Normal":"▦","Aperçu des sauts de page":"⤓","Mise en page":"🗋","Figer les volets":"❄","Nouvelle diapositive":"🗔","Disposition":"▤","Section":"§","Organiser":"⧉","Designer":"✨","Modèles 3D":"🧊","Action":"☞","Vidéo":"🎬","Audio":"🔊","Enregistrement de l'écran":"⏺","Taille des diapositives":"▭","Mise en forme de l'arrière-plan":"🖌","Aperçu":"▶","Aucune":"⊘","Morphose":"◐","Fondu":"◑","Pousser":"⇨","Balayer":"⇥","Options d'effet":"⚙","Appliquer partout":"⧉","Apparaître":"★","Entrée brusque":"★","Flottant entrant":"★","Ajouter une animation":"★+","Volet Animation":"☰","Déclencheur":"⚡","À partir du début":"▶","À partir de la diapositive actuelle":"▶","Configurer le diaporama":"⚙","Masquer la diapositive":"🚫","Vérification du minutage":"⏱","Mode Présentateur":"🖥","Mode Plan":"☰","Trieuse de diapositives":"▦","Page de commentaires":"🗒","Masque des diapositives":"▤","Repères":"✛","Partager":"↗","Sous-titres":"CC","Dicter":"🎤","Copilot":"✦","Statistiques du classeur":"123","Comparer":"⇆","Langue":"🌐","Enregistrer":"💾","Imprimer":"🖨","Ouvrir":"📂","Nouveau":"🗋","Fermer":"✕","Annuler":"↶","Rétablir":"↷"};
+const SMALL=new Set(["G","I","S","Couleur de police","Surlignage","Puces","Numérotation","Aligner à gauche","Centrer","Aligner à droite","Justifier","Interligne","Afficher tout","Couper","Copier","Reproduire la mise en forme","Bordures","Couleur de remplissage","Format Nombre Comptabilité","Pourcentage","Séparateur de milliers","Ajouter une décimale","Réduire les décimales","Renvoyer à la ligne automatiquement","Fusionner et centrer","Effacer","Remplissage"]);
+const wrap2=(s,w,z)=>{if(tw(s,z)<=w)return[s];const ws=s.split(" ");let best=[s],bd=1e9;for(let i=1;i<ws.length;i++){const a=ws.slice(0,i).join(" "),b=ws.slice(i).join(" ");const d=Math.max(tw(a,z),tw(b,z));if(d<bd){bd=d;best=[a,b]}}return best.map(x=>fit(x,w,z))};
+const icoOf=b=>IC[b]!=null?IC[b]:(b.length<=3?b:b[0]);
+
+/* ---------- presets des onglets ---------- */
+const TABS={
+ word:["Fichier","Accueil","Insertion","Dessin","Création","Mise en page","Références","Publipostage","Révision","Affichage","Aide"],
+ excel:["Fichier","Accueil","Insertion","Dessin","Mise en page","Formules","Données","Révision","Affichage","Aide"],
+ ppt:["Fichier","Accueil","Insertion","Dessin","Création","Transitions","Animations","Diaporama","Révision","Affichage","Aide"],
+ outlook:["Fichier","Accueil","Envoyer/recevoir","Affichage","Aide"],
+ access:["Fichier","Accueil","Créer","Données externes","Outils de base de données","Aide"]};
+const RIB={
+ "word/Accueil":[["Presse-papiers",["Coller","Couper","Copier","Reproduire la mise en forme"]],["Police",["~Calibri (Corps)","~11","G","I","S","Couleur de police","Surlignage"]],["Paragraphe",["Puces","Numérotation","Aligner à gauche","Centrer","Aligner à droite","Justifier","Interligne","Afficher tout"]],["Styles",["@Normal","@Sans interligne","@Titre 1","@Titre 2"]],["Édition",["Rechercher","Remplacer","Sélectionner"]]],
+ "word/Insertion":[["Pages",["Page de garde","Page vierge","Saut de page"]],["Tableaux",["Tableau"]],["Illustrations",["Images","Formes","Icônes","SmartArt","Graphique"]],["En-tête et pied de page",["En-tête","Pied de page","Numéro de page"]],["Texte",["Zone de texte","WordArt","Lettrine"]],["Symboles",["Équation","Symbole"]]],
+ "word/Création":[["Mise en forme du document",["Thèmes","Couleurs","Polices"]],["Arrière-plan de la page",["Filigrane","Couleur de page","Bordures de page"]]],
+ "word/Mise en page":[["Mise en page",["Marges","Orientation","Taille","Colonnes","Sauts de page"]],["Paragraphe",["Retrait","Espacement"]],["Organiser",["Position","Habillage","Aligner","Grouper"]]],
+ "word/Références":[["Table des matières",["Table des matières","Mettre à jour la table"]],["Notes de bas de page",["Insérer une note de bas de page"]],["Citations et bibliographie",["Insérer une citation"]],["Légendes",["Insérer une légende","Renvoi"]]],
+ "word/Publipostage":[["Démarrer la fusion",["Démarrer la fusion et le publipostage","Sélection des destinataires"]],["Champs",["Insérer un champ de fusion"]],["Aperçu",["Aperçu des résultats"]],["Terminer",["Terminer et fusionner"]]],
+ "word/Révision":[["Vérification",["Grammaire et orthographe","Statistiques"]],["Langue",["Traduire","Langue"]],["Commentaires",["Nouveau commentaire"]],["Suivi",["Suivi des modifications"]],["Modifications",["Accepter","Refuser"]],["Comparer",["Comparer"]],["Protéger",["Restreindre la modification"]]],
+ "word/Affichage":[["Affichages",["Mode Lecture","Page"]],["Afficher",["Règle","Quadrillage","Volet de navigation"]],["Zoom",["Zoom","~100 %"]],["Fenêtre",["Nouvelle fenêtre","Fractionner"]]],
+ "excel/Accueil":[["Presse-papiers",["Coller","Couper","Copier"]],["Police",["~Calibri","~11","G","I","S","Bordures","Couleur de remplissage","Couleur de police"]],["Alignement",["Aligner à gauche","Centrer","Aligner à droite","Renvoyer à la ligne automatiquement","Fusionner et centrer"]],["Nombre",["~Standard","Format Nombre Comptabilité","Pourcentage","Séparateur de milliers","Ajouter une décimale","Réduire les décimales"]],["Styles",["Mise en forme conditionnelle","Mettre sous forme de tableau","Styles de cellules"]],["Cellules",["Insérer","Supprimer","Format"]],["Édition",["Somme automatique","Remplissage","Effacer","Trier et filtrer","Rechercher et sélectionner"]]],
+ "excel/Insertion":[["Tableaux",["Tableau croisé dynamique","Tableau"]],["Illustrations",["Images","Formes","Icônes"]],["Graphiques",["Graphiques recommandés","Histogramme","Courbes","Secteurs","Barres","Graphique croisé dynamique"]],["Graphiques sparkline",["Sparkline courbe","Sparkline histogramme"]],["Filtres",["Segment","Chronologie"]],["Liens",["Lien"]],["Texte",["Zone de texte","En-tête/pied"]]],
+ "excel/Mise en page":[["Mise en page",["Marges","Orientation","Taille","Zone d'impression","Sauts de page","Imprimer les titres"]],["Mise à l'échelle",["~Largeur : Automatique","~Hauteur : Automatique","~Échelle : 100 %"]]],
+ "excel/Formules":[["Bibliothèque de fonctions",["Insérer une fonction","Somme automatique","Récemment utilisées","Financier","Logique","Texte","Date et heure","Recherche et référence","Maths et trigonométrie"]],["Noms définis",["Gestionnaire de noms","Définir un nom"]],["Audit de formules",["Repérer les antécédents","Repérer les dépendants","Afficher les formules","Vérification des erreurs","Évaluation de formule"]],["Calcul",["Options de calcul"]]],
+ "excel/Données":[["Récupérer et transformer",["Obtenir des données"]],["Requêtes",["Actualiser tout"]],["Trier et filtrer",["Trier de A à Z","Trier de Z à A","Trier","Filtrer","Effacer"]],["Outils de données",["Convertir","Remplissage instantané","Supprimer les doublons","Validation des données","Consolider"]],["Prévision",["Analyse de scénarios"]],["Plan",["Grouper","Sous-total"]]],
+ "excel/Révision":[["Vérification",["Orthographe","Statistiques du classeur"]],["Commentaires",["Nouveau commentaire"]],["Protéger",["Protéger la feuille","Protéger le classeur"]]],
+ "excel/Affichage":[["Affichages classeur",["Normal","Aperçu des sauts de page","Mise en page"]],["Afficher",["Règle","Quadrillage"]],["Zoom",["Zoom","~100 %"]],["Fenêtre",["Nouvelle fenêtre","Figer les volets","Fractionner"]]],
+ "ppt/Accueil":[["Presse-papiers",["Coller","Couper","Copier"]],["Diapositives",["Nouvelle diapositive","Disposition","Section"]],["Police",["~Calibri (Corps)","~18","G","I","S","Couleur de police"]],["Paragraphe",["Puces","Numérotation","Aligner à gauche","Centrer","Aligner à droite"]],["Dessin",["Formes","Organiser"]],["Édition",["Rechercher","Remplacer"]],["Designer",["Designer"]]],
+ "ppt/Insertion":[["Diapositives",["Nouvelle diapositive"]],["Tableaux",["Tableau"]],["Images",["Images"]],["Illustrations",["Formes","Icônes","Modèles 3D","SmartArt","Graphique"]],["Liens",["Lien","Action"]],["Texte",["Zone de texte","En-tête/pied","WordArt"]],["Médias",["Vidéo","Audio","Enregistrement de l'écran"]]],
+ "ppt/Création":[["Thèmes",["@Office","@Thème 2","@Thème 3","@Thème 4"]],["Personnaliser",["Taille des diapositives","Mise en forme de l'arrière-plan"]],["Designer",["Designer"]]],
+ "ppt/Transitions":[["Aperçu",["Aperçu"]],["Accès à cette diapositive",["Aucune","Morphose","Fondu","Pousser","Balayer"]],["",["Options d'effet"]],["Minutage",["~Son : [Aucun son]","~Durée : 01,00","Appliquer partout"]]],
+ "ppt/Animations":[["Aperçu",["Aperçu"]],["Animation",["Aucune","Apparaître","Fondu","Entrée brusque","Flottant entrant"]],["",["Options d'effet"]],["Animation avancée",["Ajouter une animation","Volet Animation","Déclencheur"]],["Minutage",["~Démarrer : Au clic","~Durée : 00,50"]]],
+ "ppt/Diaporama":[["Démarrage du diaporama",["À partir du début","À partir de la diapositive actuelle"]],["Configuration",["Configurer le diaporama","Masquer la diapositive","Vérification du minutage"]],["Moniteurs",["Mode Présentateur"]]],
+ "ppt/Affichage":[["Modes Présentation",["Normal","Mode Plan","Trieuse de diapositives","Page de commentaires","Mode Lecture"]],["Modes Masque",["Masque des diapositives"]],["Afficher",["Règle","Quadrillage","Repères"]],["Zoom",["Zoom"]]],
+ "ppt/Révision":[["Vérification",["Orthographe"]],["Langue",["Traduire"]],["Commentaires",["Nouveau commentaire"]]],
+ "outlook/Accueil":[["Nouveau",["Nouveau courrier","Nouvel élément"]],["Supprimer",["Supprimer","Archiver"]],["Répondre",["Répondre","Répondre à tous","Transférer"]],["Déplacer",["Déplacer","Règles"]],["Indicateurs",["Non lu/Lu","Assurer un suivi"]],["Rechercher",["Carnet d'adresses"]]],
+ "access/Créer":[["Modèles",["Composants d'application"]],["Tables",["Table","Création de table"]],["Requêtes",["Assistant Requête","Création de requête"]],["Formulaires",["Formulaire","Assistant Formulaire"]],["États",["État","Assistant État"]]],
+ "access/Outils de base de données":[["Outils",["Compacter et réparer"]],["Relations",["Relations","Dépendances"]]],
+ "access/Accueil":[["Affichages",["Affichage"]],["Presse-papiers",["Coller","Couper","Copier"]],["Trier et filtrer",["Filtrer","Croissant","Décroissant"]],["Enregistrements",["Nouveau","Enregistrer","Supprimer"]],["Rechercher",["Rechercher"]]]
+};
+Object.assign(IC,{"Nouveau courrier":"✉","Nouvel élément":"✚","Archiver":"🗄","Répondre":"↩","Répondre à tous":"↩↩","Transférer":"↪","Déplacer":"📁","Règles":"⚙","Non lu/Lu":"✉","Assurer un suivi":"⚑","Carnet d'adresses":"📇","Table":"▦","Création de table":"✎▦","Assistant Requête":"?","Création de requête":"✎?","Formulaire":"🗔","Assistant Formulaire":"🗔","État":"🗎","Assistant État":"🗎","Relations":"⇄","Dépendances":"⇉","Compacter et réparer":"🔧","Affichage":"👁","Croissant":"A↓","Décroissant":"Z↓","Composants d'application":"⧉","En-tête/pied":"▔","Sparkline courbe":"〰","Sparkline histogramme":"▮","Statistiques du classeur":"123"});
+
+/* ---------- ruban ---------- */
+function ribbon(S,app,y0){
+ const key=app+"/"+(S.tab||"Accueil");let groups=S.rib||RIB[key]||RIB[app+"/Accueil"]||[];
+ const need=new Set(Object.keys(S._hi||{}).map(nm));
+ const bw=b=>{if(b[0]==="~")return Math.max(44,tw(b.slice(1),11)+22);if(b[0]==="@")return Math.max(58,tw(b.slice(1),11)+14);if(SMALL.has(b)||b.length<=1)return 24;const L=wrap2(b,74,9);return Math.min(78,Math.max(36,...L.map(x=>tw(x,9)+8)))};
+ const gw=g=>Math.max(tw(g[0],10)+10,g[1].reduce((a,b)=>a+bw(b)+2,8));
+ let total=0,keep=[];const req=groups.map(g=>g[1].some(b=>need.has(nm(b.replace(/^[~@]/,""))))||need.has(nm(g[0])));
+ const reqW=groups.reduce((a,g,i)=>a+(req[i]?gw(g)+6:0),0);let used=0;
+ groups.forEach((g,i)=>{const w=gw(g)+6;if(req[i]||used+w+reqW-(req.slice(0,i).reduce((a,q,j)=>a+(q?gw(groups[j])+6:0),0))<=W-30){keep.push(g);used+=w}});
+ let h=r(0,y0,W,84,"#f5f5f5")+ln(0,y0+84,W,y0+84,BD);let x=8;
+ keep.forEach((g,gi)=>{const gx=x;let bx=x+4;
+  g[1].forEach(b=>{const w=bw(b);
+   if(b[0]==="~"){const lab=b.slice(1);h+=r(bx,y0+14,w,22,"#fff","#c8c8c8",3)+t(bx+5,y0+29,fit(lab,w-18,11),{z:11})+t(bx+w-9,y0+29,"⌄",{z:10,c:MU,a:"middle"});reg(lab,bx,y0+14,w,22);}
+   else if(b[0]==="@"){const lab=b.slice(1);h+=r(bx,y0+8,w,48,"#fff","#d0d0d0",3)+t(bx+w/2,y0+30,"AaBbCc",{z:11,a:"middle",b:/Titre/.test(lab)?600:400,c:/Titre/.test(lab)?"#2f5496":TX})+t(bx+w/2,y0+48,fit(lab,w-4,9.5),{z:9.5,a:"middle",c:MU});reg(lab,bx,y0+8,w,48);}
+   else{const ic=icoOf(b),big=!(SMALL.has(b)||b.length<=1);const st=b==="G"?{b:800}:b==="I"?{i:1}:b==="S"?{u:1}:{};const iy=big?y0+31:y0+36;
+    h+=t(bx+w/2,iy,ic,Object.assign({z:big?(ic.length>2&&!EMO.test(ic)?12:18):(ic.length>2&&!EMO.test(ic)?9.5:14),a:"middle",c:b==="Couleur de police"?"#c00000":["G","I","S"].includes(b)?TX:"#3b3b3b"},st));
+    if(b==="Couleur de police")h+=r(bx+w/2-6,iy+3,12,3,"#c00000","none",0);
+    if(big){const L=wrap2(b,74,9);L.forEach((x,k)=>{h+=t(bx+w/2,y0+49+k*11,x,{z:9,a:"middle",c:"#333"})});}
+    reg(b,bx,big?y0+10:y0+20,w,big?54:22);}
+   bx+=w+2;});
+  const ww=Math.max(bx-gx,tw(g[0],10)+10);h+=t(gx+ww/2,y0+77,fit(g[0],ww,9.5),{z:9.5,c:MU,a:"middle"});reg(g[0],gx,y0+66,ww,16);
+  x=gx+ww+4;h+=ln(x,y0+8,x,y0+76,"#d8d8d8");x+=4;});
+ h+=t(W-14,y0+78,"⌄",{z:11,c:MU,a:"end"});
+ return [h,84];
+}
+
+/* ---------- application Office ---------- */
+function office(S,app){
+ const a=ACC[app];let h="",y=0;
+ h+=r(0,0,W,30,a,"none",0);
+ h+=t(12,20,"↻",{z:12,c:"#fff"})+t(30,20,"💾",{z:11,c:"#fff"})+t(50,20,"↶",{z:13,c:"#fff"})+t(66,20,"↷",{z:13,c:"#fff"});reg("Enregistrer (accès rapide)",28,6,18,20);reg("Annuler (accès rapide)",46,6,16,20);
+ h+=t(86,20,fit(S.title||({excel:"Classeur1 - Excel",ppt:"Présentation1 - PowerPoint",outlook:"Boîte de réception - Outlook",access:"Base1 : Base de données - Access"}[app]||("Document1 - "+NAME[app])),W*.32,11.5),{z:11.5,c:"#fff"});
+ const sx=W*.42,swd=Math.min(230,W*.3);h+=r(sx,6,swd,19,"#fff","none",4,0,' fill-opacity=".9"')+t(sx+10,19.5,"🔍 Rechercher",{z:10.5,c:MU});reg("Rechercher (barre)",sx,6,swd,19);
+ h+=ci(W-140,15,9,"#fff","none")+t(W-140,19,"MK",{z:8,c:a,a:"middle",b:700})+winBtns(0,"#fff");
+ y=30;
+ if(S.tabs!==false){const tabs=S.tabs||TABS[app]||[];h+=r(0,y,W,28,a,"none",0);let x=8;
+  tabs.forEach(tb=>{const w=tw(tb,12)+16;if(x+w>W-170)return;const on=tb===(S.tab||"Accueil");
+   if(tb==="Fichier")h+=t(x+w/2,y+18,tb,{z:12,c:"#fff",a:"middle"});
+   else if(on)h+=r(x,y+3,w,25,"#f5f5f5","none",3)+t(x+w/2,y+19,tb,{z:12,c:a,a:"middle",b:600});
+   else h+=t(x+w/2,y+19,tb,{z:12,c:"#fff",a:"middle"});
+   reg(tb,x,y+2,w,26);x+=w+2;});
+  h+=r(W-160,y+4,72,20,"none","#fff",4)+t(W-124,y+18,"💬 Commentaires",{z:9,c:"#fff",a:"middle"});reg("Commentaires",W-160,y+4,72,20);
+  h+=r(W-82,y+4,70,20,"#fff","none",4)+t(W-47,y+18,"↗ Partager",{z:10.5,c:a,a:"middle",b:600});reg("Partager (bouton)",W-82,y+4,70,20);
+  y+=28;
+  if(S.tab!=="Fichier"&&S.rib!==false){const[rh,hh]=ribbon(S,app,y);h+=rh;y+=hh;}}
+ return [h,y];
+}
+
+/* ---------- corps : document Word ---------- */
+function bodyDoc(S,y){
+ const lines=S.doc||[];const ph=Math.max(150,lines.reduce((a,l)=>a+(l.startsWith("# ")?30:l===""?10:20),40));
+ let h=r(0,y,W,ph+40,"#e9e9e9","none",0);if(S.ruler!==false){h+=r(W/2-210,y+6,420,12,"#fff","#ccc",0)+Array.from({length:16},(_,i)=>ln(W/2-200+i*26.6,y+14,W/2-200+i*26.6,y+18,"#999")).join("");}
+ const px=W/2-200,pw=400;h+=sh(px,y+26,pw,ph)+r(px,y+26,pw,ph+20,"#fff","none",0);let ly=y+64;
+ lines.forEach((l,i)=>{let o={z:12},x=px+48,s=l;
+  if(l.startsWith("# ")){o={z:18,c:"#2f5496",b:600};s=l.slice(2);}
+  else if(l.startsWith("## ")){o={z:14,c:"#2f5496",b:600};s=l.slice(3);}
+  else if(l.startsWith("- ")){h+=t(x,ly,"•",{z:12});x+=16;s=l.slice(2);}
+  else if(l.startsWith("> ")){o={z:12,a:"middle"};x=px+pw/2;s=l.slice(2);}
+  else if(l.startsWith("| ")){const cells=l.slice(2).split("|");const cw=(pw-96)/cells.length;cells.forEach((c,j)=>{h+=r(px+48+j*cw,ly-14,cw,20,i===S.thead?"#dde7f6":"#fff","#7f7f7f",0,.8)+t(px+52+j*cw,ly,fit(c.trim(),cw-8,11),{z:11,b:i===S.thead});reg(c.trim(),px+48+j*cw,ly-14,cw,20)});ly+=20;return;}
+  if(S.sel===i){h+=r(x-2,ly-13,Math.min(tw(s,o.z||12)+4,pw-60),18,"#c6dafc","none",0);}
+  h+=t(x,ly,fit(s,pw-(x-px)-30,o.z||12),o);reg(s,x,ly-(o.z||12),Math.min(tw(s,o.z||12),pw-60),(o.z||12)+6);
+  if(S.caret===i)h+=ln(x+Math.min(tw(s,o.z||12),pw-80)+2,ly-12,x+Math.min(tw(s,o.z||12),pw-80)+2,ly+3,"#000",1.2);
+  ly+=l.startsWith("# ")?30:l===""?10:20;});
+ return [h,ph+40];
+}
+/* ---------- corps : Excel ---------- */
+function bodyGrid(S,y){
+ const G=S.grid||{},rows=G.rows||[],nc=Math.max(G.cols||0,...rows.map(r=>r.length),6),nr=Math.max(G.nrows||0,rows.length+2,8);
+ const cw=G.cw||[];const colW=j=>cw[j]||Math.max(64,Math.min(150,Math.max(...rows.map(r=>tw(r[j]||"",11)+12),0)));
+ let h="";const sel=(G.sel||"A1").toUpperCase(),fx=G.fx!=null?G.fx:((()=>{const m=sel.match(/^([A-Z])(\d+)/);if(!m)return"";const v=(rows[+m[2]-1]||[])[m[1].charCodeAt(0)-65];return v==null?"":String(v).replace(/^\*\*/,"")})());
+ h+=r(0,y,W,30,"#fff","none",0)+r(6,y+5,74,20,"#fff","#bdbdbd",2)+t(12,y+19,sel.split(":")[0],{z:11});reg("Zone Nom",6,y+5,74,20);
+ h+=t(92,y+19,"✕  ✓",{z:11,c:MU})+t(126,y+19,"fx",{z:12,c:MU,i:1});reg("fx",120,y+5,20,20);
+ h+=r(146,y+5,W-152,20,"#fff","#bdbdbd",2)+t(152,y+19,fit(fx,W-170,11),{z:11});reg("Barre de formule",146,y+5,W-152,20);y+=30;
+ const x0=34;let xs=[x0];for(let j=0;j<nc;j++)xs.push(xs[j]+colW(j));const vis=xs.filter(v=>v<W).length-1;
+ h+=r(0,y,W,20,"#f3f3f3","none",0)+ln(0,y+20,W,y+20,"#c6c6c6");
+ const ci_=c=>c.charCodeAt(0)-65,cellRe=/^([A-Z])(\d+)(?::([A-Z])(\d+))?$/;const m=sel.match(cellRe)||["","A","1"];
+ const c1=ci_(m[1]),r1=+m[2],c2=m[3]?ci_(m[3]):c1,r2=m[4]?+m[4]:r1;
+ for(let j=0;j<vis;j++){const on=j>=c1&&j<=c2;h+=(on?r(xs[j],y,xs[j+1]-xs[j],20,"#d3f0e0","none",0)+ln(xs[j],y+19,xs[j+1],y+19,"#107c41",2):"")+t((xs[j]+xs[j+1])/2,y+14,String.fromCharCode(65+j),{z:11,a:"middle",c:on?"#107c41":MU,b:on});h+=ln(xs[j+1],y,xs[j+1],y+20,"#d4d4d4");reg("colonne "+String.fromCharCode(65+j),xs[j],y,xs[j+1]-xs[j],20);}
+ y+=20;
+ for(let i=0;i<nr;i++){const ry=y+i*20,on=i+1>=r1&&i+1<=r2;
+  h+=r(0,ry,x0,20,on?"#d3f0e0":"#f3f3f3","none",0)+t(x0/2,ry+14,String(i+1),{z:10.5,a:"middle",c:on?"#107c41":MU});reg("ligne "+(i+1),0,ry,x0,20);
+  h+=ln(x0,ry+20,W,ry+20,"#e1e1e1");
+  const row=rows[i]||[];for(let j=0;j<vis;j++){let v=row[j];if(v==null||v===""){reg(String.fromCharCode(65+j)+(i+1),xs[j],ry,xs[j+1]-xs[j],20);if(G.fill&&G.fill[String.fromCharCode(65+j)+(i+1)])h+=r(xs[j]+.5,ry+.5,xs[j+1]-xs[j]-1,19,G.fill[String.fromCharCode(65+j)+(i+1)],"none",0);continue;}v=String(v);let o={z:11};
+   if(v.startsWith("**")){v=v.slice(2);o.b=true}
+   const num=/^[-+]?[\d\s ]+([,.]\d+)?\s?(%|€|FCFA|F)?$/.test(v)&&!/^\d{2}\/\d{2}/.test(v);
+   if(i===(G.head!=null?G.head:-1))h+=r(xs[j],ry,xs[j+1]-xs[j],20,G.hc||"#dbe9f6","none",0),o.b=true;
+   if(G.fill&&G.fill[String.fromCharCode(65+j)+(i+1)])h+=r(xs[j]+.5,ry+.5,xs[j+1]-xs[j]-1,19,G.fill[String.fromCharCode(65+j)+(i+1)],"none",0);
+   h+=t(num?xs[j+1]-4:xs[j]+4,ry+14,fit(v,xs[j+1]-xs[j]-6,11),Object.assign(o,num?{a:"end"}:{}));reg(String.fromCharCode(65+j)+(i+1),xs[j],ry,xs[j+1]-xs[j],20);}
+  if(G.filter&&i===(G.head||0)){for(let j=0;j<Math.min(vis,(rows[i]||[]).length);j++){h+=r(xs[j+1]-17,ry+3,14,14,"#fff","#a0a0a0",2)+t(xs[j+1]-10,ry+14,"⏷",{z:9,a:"middle",c:MU});reg("filtre "+String.fromCharCode(65+j),xs[j+1]-17,ry+3,14,14);}}}
+ for(let j=0;j<vis;j++)h+=ln(xs[j+1],y,xs[j+1],y+nr*20,"#e1e1e1");
+ if(c1<vis){const sx=xs[c1],sy=y+(r1-1)*20,sw=xs[Math.min(c2,vis-1)+1]-sx,shh=(r2-r1+1)*20;h+=(c2>c1||r2>r1?r(sx,sy,sw,shh,"#107c41","none",0,0,' fill-opacity=".08"'):"")+r(sx,sy,sw,shh,"none","#107c41",0,2)+r(sx+sw-3,sy+shh-3,6,6,"#107c41","#fff",0,1);reg("poignée de recopie",sx+sw-6,sy+shh-6,12,12);}
+ y+=nr*20;
+ const sheets=G.sheets||["Feuil1"];h+=r(0,y,W,24,"#f3f3f3","none",0)+ln(0,y,W,y,"#c6c6c6")+t(10,y+16,"◀ ▶",{z:9,c:MU});let sx2=44;
+ sheets.forEach((s,i)=>{const w=tw(s,11)+22;h+=(i===(G.sheet||0)?r(sx2,y,w,22,"#fff","none",0)+ln(sx2+4,y+21,sx2+w-4,y+21,"#107c41",2):"")+t(sx2+w/2,y+16,s,{z:11,a:"middle",c:i===(G.sheet||0)?"#107c41":TX,b:i===(G.sheet||0)});reg(s,sx2,y,w,22);sx2+=w;});
+ h+=t(sx2+12,y+17,"⊕",{z:14,c:MU});reg("Nouvelle feuille",sx2+4,y+2,20,20);
+ return [h,30+20+nr*20+24];
+}
+/* ---------- corps : PowerPoint ---------- */
+function bodySlide(S,y){
+ const P=S.slides||[{t:"Titre de la présentation",s:"Sous-titre"}],cur=S.cur||0,H=280;let h=r(0,y,W,H,"#e6e6e6","none",0);
+ h+=r(0,y,120,H,"#f3f3f3","none",0);P.slice(0,4).forEach((p,i)=>{const ty=y+10+i*64;h+=t(10,ty+12,String(i+1),{z:10,c:MU})+r(22,ty,88,50,"#fff",i===cur?ACC.ppt:"#c8c8c8",2,i===cur?2:1)+t(66,ty+22,fit(p.t||"",80,7),{z:7,a:"middle",b:600})+t(66,ty+34,fit(p.s||"",80,6),{z:6,a:"middle",c:MU});reg("miniature "+(i+1),22,ty,88,50)});
+ const sw=Math.min(W-160,440),shh=sw*9/16,sx=120+(W-120-sw)/2,sy=y+(H-shh)/2-10,p=P[cur]||{},bg=S.bg||"#fff";
+ h+=sh(sx,sy,sw,shh,0)+r(sx,sy,sw,shh,bg,"#c8c8c8",0);
+ if(p.lay==="content"||p.b){h+=r(sx+20,sy+14,sw-40,40,"none",p.t?"none":"#9a9a9a",0,1,' stroke-dasharray="3 3"')+t(sx+28,sy+42,fit(p.t||"Cliquez pour ajouter un titre",sw-56,p.t?20:18),{z:p.t?20:18,c:p.t?(S.tc||TX):MU});reg("zone de titre",sx+20,sy+14,sw-40,40);
+  h+=r(sx+20,sy+62,sw-40,shh-80,"none","#9a9a9a",0,1,' stroke-dasharray="3 3"');(p.b||["Cliquez pour ajouter du texte"]).forEach((b,i)=>{h+=t(sx+32,sy+86+i*22,"• "+fit(b,sw-80,13),{z:13,c:p.b?TX:MU})});reg("zone de contenu",sx+20,sy+62,sw-40,shh-80);}
+ else{h+=r(sx+30,sy+shh*.28,sw-60,shh*.26,"none",p.t?"none":"#9a9a9a",0,1,' stroke-dasharray="3 3"')+t(sx+sw/2,sy+shh*.46,fit(p.t||"Cliquez pour ajouter un titre",sw-70,p.t?24:22),{z:p.t?24:22,a:"middle",c:p.t?(S.tc||TX):MU});reg("zone de titre",sx+30,sy+shh*.28,sw-60,shh*.26);
+  h+=r(sx+60,sy+shh*.6,sw-120,shh*.16,"none",p.s?"none":"#9a9a9a",0,1,' stroke-dasharray="3 3"')+t(sx+sw/2,sy+shh*.7,fit(p.s||"Cliquez pour ajouter un sous-titre",sw-130,13),{z:13,a:"middle",c:MU});reg("zone de sous-titre",sx+60,sy+shh*.6,sw-120,shh*.16);}
+ if(S.notes!==false){h+=r(120,y+H-24,W-120,24,"#fff","#d6d6d6",0)+t(130,y+H-8,S.notes||"Cliquez pour ajouter des notes",{z:10,c:MU});reg("volet des notes",120,y+H-24,W-120,24);}
+ return [h,H];
+}
+/* ---------- barre d'état ---------- */
+function status(S,app,y){
+ const a=app==="excel"?"Prêt":app==="ppt"?"Diapositive "+((S.cur||0)+1)+" de "+((S.slides||[1]).length)+"   |   Français (France)":app==="word"?"Page 1 sur 1   |   "+(S.words!=null?S.words:(S.doc||[]).join(" ").replace(/^[#>|-]+\s/gm,"").split(/\s+/).filter(w=>/\w/.test(w)).length)+" mots   |   Français (France)":"";
+ let h=r(0,y,W,22,"#f3f3f3","none",0)+ln(0,y,W,y,BD)+t(10,y+15,S.stat||a,{z:10,c:MU});
+ h+=t(W-170,y+15,"▦  ▤  ⊟",{z:10,c:MU})+ln(W-110,y+11,W-40,y+11,"#8a8a8a")+ci(W-75,y+11,4,"#5c5c5c")+t(W-8,y+15,(S.zoom||100)+" %",{z:10,c:MU,a:"end"});reg("Zoom ",W-112,y+3,104,16);
+ return [h,22];
+}
+
+/* ---------- Windows : barre de titre claire ---------- */
+function winTitle(S,y,title,ico){let h=r(0,y,W,32,BG,"none",0)+(ico?t(12,y+21,ico,{z:13}):"")+t(ico?34:12,y+21,fit(title,W-160,12),{z:12})+winBtns(y,TX,32);reg("Fermer",W-40,y,40,32);reg("Agrandir",W-80,y,40,32);reg("Réduire",W-120,y,40,32);return [h,32]}
+
+/* ---------- Explorateur ---------- */
+const SIDE=["⭐ Accueil","🖼 Galerie","☁ OneDrive","—","🖥 Bureau","⬇ Téléchargements","📄 Documents","🖼 Images","🎵 Musique","🎬 Vidéos","—","💻 Ce PC","💽 Disque local (C:)","🔌 Clé USB (E:)","🌐 Réseau"];
+function explorer(S){
+ let h="",y=0;const loc=S.loc||"Documents";
+ h+=r(0,0,W,38,"#e8e8e8","none",0)+r(10,6,Math.min(220,tw(loc,12)+70),32,BG,"none",6)+t(22,27,"📁 "+fit(loc,150,12),{z:12})+t(Math.min(220,tw(loc,12)+70)-6,27,"✕",{z:10,c:MU,a:"end"})+t(Math.min(220,tw(loc,12)+70)+24,27,"+",{z:16,c:MU})+winBtns(0,TX,38);reg("Fermer",W-40,0,40,38);reg("Agrandir",W-80,0,40,38);reg("Réduire",W-120,0,40,38);
+ y=38;h+=r(0,y,W,40,BG,"none",0)+t(14,y+25,"←   →   ↑   ⟳",{z:13,c:MU});
+ const path=S.path||["Ce PC",loc];const ax=110,aw=W-ax-200;h+=r(ax,y+7,aw,26,"#fff","#d0d0d0",4);let px=ax+8;h+=t(px,y+25,"🖥",{z:11});px+=18;
+ path.forEach(p=>{h+=t(px,y+25,"›",{z:12,c:MU});px+=12;const w=tw(p,11.5);h+=t(px,y+25,fit(p,ax+aw-px-8,11.5),{z:11.5});reg(p+" (adresse)",px-2,y+9,w+4,22);px+=w+6;});
+ reg("Barre d'adresse",ax,y+7,aw,26);
+ h+=r(W-186,y+7,176,26,"#fff","#d0d0d0",4)+t(W-178,y+25,fit("Rechercher dans : "+loc,156,11),{z:11,c:MU})+t(W-18,y+25,"🔍",{z:11,a:"end"});reg("Rechercher",W-186,y+7,176,26);
+ y+=40;h+=r(0,y,W,38,BG,"none",0)+ln(0,y+38,W,y+38,BD);
+ let cx=12;const cmd=[["⊕ Nouveau ⌄","Nouveau"],["|"],["✂","Couper"],["⧉","Copier"],["📋","Coller"],["Ⓐ","Renommer"],["↗","Partager"],["🗑","Supprimer"],["|"],["⇅ Trier ⌄","Trier"],["☰ Afficher ⌄","Afficher"],["⏷ Filtrer ⌄","Filtrer"],["⋯","Voir plus"]];
+ cmd.forEach(c=>{if(c[0]==="|"){h+=ln(cx+2,y+9,cx+2,y+29,"#ccc");cx+=10;return}const w=c[0].length>2?tw(c[0],12)+16:30;h+=t(cx+(c[0].length>2?8:15),y+24,c[0],{z:c[0].length>2?12:15,a:c[0].length>2?"start":"middle",c:c[0]==="Ⓐ"?TX:"#333"});reg(c[1],cx,y+5,w,28);cx+=w+2;});
+ y+=38;
+ const BH=S.bh||Math.max(200,((S.rows||[]).length+2)*26+10);
+ h+=r(0,y,W,BH,"#fff","none",0)+r(0,y,170,BH,"#fafafa","none",0)+ln(170,y,170,y+BH,"#e5e5e5");
+ let sy=y+8;(S.side||SIDE).forEach(s=>{if(s==="—"){h+=ln(10,sy+4,160,sy+4,"#e5e5e5");sy+=10;return}if(sy>y+BH-20)return;const lab=s.replace(/^\S+\s/,"");const on=lab===(S.sideSel||loc);h+=(on?r(6,sy-1,158,24,"#e0eef9","none",4)+r(6,sy+5,3,12,BLUE,"none",2):"")+t(16,sy+16,fit(s,140,11.5),{z:11.5,b:on?600:400});reg(lab,6,sy-1,158,24);sy+=25;});
+ const cols=S.cols||["Nom","Modifié le","Type","Taille"],cwid=[0.42,0.24,0.2,0.14],tx0=180,TW=W-tx0-10;
+ let hx=tx0;cols.forEach((c,i)=>{h+=t(hx+6,y+20,c,{z:11,c:MU});hx+=TW*(cwid[i]||.2);});h+=ln(tx0,y+28,W-10,y+28,"#eee");
+ let ry=y+32;(S.rows||[]).forEach((row,i)=>{const sel=(S.sel===i)||(Array.isArray(S.sel)&&S.sel.includes(i));if(sel)h+=r(tx0,ry,TW,24,SEL,"none",3);
+  let rx=tx0;row.forEach((v,j)=>{if(j===0&&S.edit===i){const em=v.split(" ")[0],name=S.newName||v.slice(em.length+1),base=S.newName?name:name.replace(/\.[^.]+$/,""),ext=name.slice(base.length);const w=Math.min(tw(name,11.5)+22,TW*.42-30);h+=t(rx+6,ry+17,em,{z:11.5})+r(rx+24,ry+3,w,19,"#fff",BLUE,2,1.2)+(S.newName?t(rx+29,ry+17,name,{z:11.5})+ln(rx+30+tw(name,11.5),ry+6,rx+30+tw(name,11.5),ry+19,"#000",1.2):r(rx+28,ry+6,tw(base,11.5)+2,13,"#0078d4","none",0)+t(rx+29,ry+17,base,{z:11.5,c:"#fff"})+t(rx+31+tw(base,11.5),ry+17,ext,{z:11.5}));}
+   else h+=t(rx+6,ry+17,fit(v,TW*(cwid[j]||.2)-10,11.5),{z:11.5,c:j?MU:TX});rx+=TW*(cwid[j]||.2);});
+  reg(row[0].replace(/^\S+\s/,""),tx0,ry,TW*.42,24);reg(row[0],tx0,ry,TW*.42,24);ry+=26;});
+ y+=BH;const n=(S.rows||[]).length;h+=r(0,y,W,22,"#fff","none",0)+ln(0,y,W,y,"#eee")+t(10,y+15,S.stat||(n+" élément"+(n>1?"s":"")+(S.sel!=null&&S.sel!==-1?"  |  "+(Array.isArray(S.sel)?S.sel.length:1)+" élément"+(Array.isArray(S.sel)&&S.sel.length>1?"s":"")+" sélectionné"+(Array.isArray(S.sel)&&S.sel.length>1?"s":""):"")),{z:10.5,c:MU});
+ return [h,y+22];
+}
+
+/* ---------- Paramètres ---------- */
+const SNAV=[["🖥","Système"],["ᛒ","Bluetooth et appareils"],["📶","Réseau et Internet"],["🖌","Personnalisation"],["▦","Applications"],["👤","Comptes"],["🕒","Heure et langue"],["🎮","Jeux"],["♿","Accessibilité"],["🛡","Confidentialité et sécurité"],["⟳","Windows Update"]];
+function settings(S){
+ let [h,y]=winTitle(S,0,"Paramètres","");h=r(0,0,W,32,BG,"none",0)+t(12,21,"←",{z:13})+t(34,21,"Paramètres",{z:12})+winBtns(0,TX,32);
+ const items=S.items||[];const BH=Math.max(330,92+items.reduce((a,it)=>a+(it.length===1?28:(it[2]?58:48)),0)+20);
+ h+=r(0,y,W,BH,BG,"none",0);
+ h+=ci(30,y+30,18,"#c7d6e8")+t(30,y+36,"👤",{z:15,a:"middle"})+t(56,y+26,S.user||"Awa Mensah",{z:12,b:600})+t(56,y+42,"Compte local",{z:10,c:MU});
+ h+=r(12,y+60,200,28,"#fff","#e0e0e0",4)+t(20,y+79,"Rechercher un paramètre",{z:11,c:MU})+t(204,y+79,"🔍",{z:11,a:"end"});reg("Rechercher un paramètre",12,y+60,200,28);
+ let ny=y+98;SNAV.forEach(([ic,l])=>{const on=l===(S.nav||"Système");h+=(on?r(8,ny,208,30,"#e9e9e9","none",4)+r(8,ny+8,3,14,BLUE,"none",2):"")+t(24,ny+20,ic,{z:13,a:"middle"})+t(42,ny+20,l,{z:11.5,b:on?600:400});reg(l,8,ny,208,30);ny+=32;});
+ const cx=232,cw=W-cx-16;let cy=y+38;let crumbs=(S.page||S.nav||"Système").split(">").map(s=>s.trim());while(crumbs.length>1&&crumbs.reduce((t0,c,i)=>t0+tw(c,i===crumbs.length-1?22:20)+22,0)>cw)crumbs.shift();let bx=cx;
+ crumbs.forEach((c,i)=>{const z=i===crumbs.length-1?22:20,last=i===crumbs.length-1;h+=t(bx,cy,fit(c,cw,z),{z,b:600,c:last?TX:MU});bx+=tw(c,z)+6;if(!last){h+=t(bx,cy,"›",{z:18,c:MU});bx+=16}});
+ cy+=24;
+ items.forEach(it=>{if(it.length===1&&String(it[0])[0]==="#"){h+=t(cx,cy+18,String(it[0]).slice(1),{z:12,b:600});cy+=28;return}
+  const [ic,lab,sub,ctl]=it,hh=sub?54:44;h+=r(cx,cy,cw,hh,"#fff","#e5e5e5",5);h+=t(cx+20,cy+hh/2+5,ic||"",{z:14,a:"middle"});
+  h+=t(cx+40,cy+(sub?22:27),fit(lab,cw-200,12),{z:12});if(sub)h+=t(cx+40,cy+39,fit(sub,cw-190,10),{z:10,c:MU});reg(lab,cx,cy,cw,hh);
+  const c=String(ctl||">");
+  if(c==="on"||c==="off"){h+=t(cx+cw-60,cy+hh/2+4,c==="on"?"Activé":"Désactivé",{z:11,a:"end",c:MU})+toggle(cx+cw-54,cy+hh/2-10,c==="on",lab+" (interrupteur)");}
+  else if(c.startsWith("dd:")){const v=c.slice(3),w=Math.min(170,tw(v,11)+34);h+=r(cx+cw-w-14,cy+hh/2-14,w,28,"#fbfbfb","#d0d0d0",4)+t(cx+cw-w-6,cy+hh/2+4,fit(v,w-24,11),{z:11})+t(cx+cw-22,cy+hh/2+4,"⌄",{z:11,a:"middle",c:MU});reg(v,cx+cw-w-14,cy+hh/2-14,w,28);}
+  else if(c.startsWith("btn:")){const v=c.slice(4),w=tw(v,11)+24;h+=r(cx+cw-w-14,cy+hh/2-14,w,28,"#fbfbfb","#d0d0d0",4)+t(cx+cw-w/2-14,cy+hh/2+4,v,{z:11,a:"middle"});reg(v,cx+cw-w-14,cy+hh/2-14,w,28);}
+  else if(c.startsWith("pbtn:")){const v=c.slice(5),w=tw(v,11)+24;h+=r(cx+cw-w-14,cy+hh/2-14,w,28,BLUE,"none",4)+t(cx+cw-w/2-14,cy+hh/2+4,v,{z:11,a:"middle",c:"#fff"});reg(v,cx+cw-w-14,cy+hh/2-14,w,28);}
+  else if(c.startsWith("sl:")){const v=+c.slice(3);h+=ln(cx+cw-170,cy+hh/2,cx+cw-30,cy+hh/2,"#8a8a8a",3)+ln(cx+cw-170,cy+hh/2,cx+cw-170+140*v/100,cy+hh/2,BLUE,3)+ci(cx+cw-170+140*v/100,cy+hh/2,7,"#fff","#c0c0c0")+ci(cx+cw-170+140*v/100,cy+hh/2,4,BLUE);reg(lab+" (curseur)",cx+cw-176,cy+hh/2-10,152,20);}
+  else if(c.startsWith("txt:"))h+=t(cx+cw-34,cy+hh/2+4,c.slice(4),{z:11,a:"end",c:MU})+t(cx+cw-18,cy+hh/2+4,"›",{z:14,a:"middle",c:MU});
+  else h+=t(cx+cw-18,cy+hh/2+5,c==="↗"?"↗":"›",{z:14,a:"middle",c:MU});
+  cy+=hh+4;});
+ return [h,y+BH];
+}
+
+/* ---------- Bloc-notes / terminal / navigateur / fenêtre générique ---------- */
+function notepad(S){let h=r(0,0,W,38,"#ebebeb","none",0)+r(10,6,200,32,"#f9f9f9","none",6)+t(22,27,"🗒 "+fit(S.title||"Sans titre",150,12),{z:12})+t(204,27,"✕",{z:10,c:MU,a:"end"})+t(224,27,"+",{z:16,c:MU})+winBtns(0,TX,38);
+ let y=38;h+=r(0,y,W,30,"#f9f9f9","none",0);let x=12;["Fichier","Modifier","Affichage"].forEach(m=>{h+=t(x,y+20,m,{z:12});reg(m,x-6,y+3,tw(m,12)+12,24);x+=tw(m,12)+22});h+=t(W-14,y+20,"⚙",{z:13,a:"end"});y+=30;
+ const L=S.text||[""],BH=Math.max(140,L.length*20+30);h+=r(0,y,W,BH,"#fff","none",0)+ln(0,y,W,y,"#e5e5e5");L.forEach((l,i)=>{h+=t(12,y+24+i*20,l,{z:13,m:1});reg(l,12,y+10+i*20,tw(l,13)+4,18)});
+ if(S.caret!=null){const l=L[S.caret]||"";h+=ln(13+l.length*7.15,y+11+S.caret*20,13+l.length*7.15,y+28+S.caret*20,"#000",1.2)}
+ y+=BH;h+=r(0,y,W,24,"#f9f9f9","none",0)+ln(0,y,W,y,"#e5e5e5")+t(12,y+16,"Ln 1, Col 1    |    100 %    |    Windows (CRLF)    |    UTF-8",{z:10.5,c:MU});return [h,y+24];}
+function term(S){const ps=S.ps;let h=r(0,0,W,34,"#2b2b2b","none",0)+r(8,5,220,29,"#0c0c0c","none",6)+t(20,24,ps?"⚡ Windows PowerShell":"▪ Invite de commandes",{z:11.5,c:"#fff"})+t(220,24,"✕",{z:10,c:"#bbb",a:"end"})+t(244,24,"+  ⌄",{z:13,c:"#bbb"})+winBtns(0,"#fff",34);
+ const L=S.text||[],BH=Math.max(160,L.length*18+24);h+=r(0,34,W,BH,"#0c0c0c","none",0);L.forEach((l,i)=>{h+=t(10,56+i*18,l,{z:12.5,m:1,c:/^(C:\\|PS )/.test(l)?"#f2f2f2":"#cccccc"});reg(l,10,42+i*18,Math.min(W-20,l.length*7),18)});return [h,34+BH];}
+function edge(S){let h=r(0,0,W,36,"#e9e9e9","none",0);let x=8;(S.tabsW||[S.ptitle||"Nouvel onglet"]).forEach((tb,i)=>{const w=Math.min(200,tw(tb,11.5)+50);h+=(i===0?r(x,5,w,31,"#fff","none",7):"")+t(x+12,25,"🌐 "+fit(tb,w-46,11.5),{z:11.5})+t(x+w-10,25,"✕",{z:9.5,c:MU,a:"end"});reg(tb,x,5,w,31);x+=w+4});h+=t(x+8,25,"+",{z:16,c:MU})+winBtns(0,TX,36);
+ let y=36;h+=r(0,y,W,38,"#fff","none",0)+t(12,y+25,"←  →  ⟳",{z:13,c:MU})+r(96,y+6,W-196,27,"#f1f3f4","none",14)+t(110,y+24,(S.lock===false?"⚠ Non sécurisé  ":"🔒 ")+fit(S.url||"",W-260,12),{z:12,c:S.lock===false?"#c42b1c":TX});reg("Barre d'adresse",96,y+6,W-196,27);reg("cadenas",104,y+8,18,22);
+ h+=t(W-90,y+25,"☆  ⋯",{z:14,c:MU});reg("Favoris",W-94,y+8,18,22);reg("Paramètres et plus",W-66,y+8,22,22);h+=ci(W-30,y+19,10,"#c7d6e8")+t(W-30,y+23,"👤",{z:10,a:"middle"});y+=38;h+=ln(0,y,W,y,BD);
+ const [ph,hh]=page(S,y);return [h+ph,y+hh];}
+function page(S,y){const L=S.page||[],X0=S._x0||0;let h="",ly=y+28;const BH=Math.max(S._minH||160,L.reduce((a,l)=>a+lh(l),30));h+=r(X0,y,W-X0,BH,S.pbg||"#fff","none",0);
+ L.forEach(l=>{const k=l.match(/^(#{1,3} |\[btn\] |\[pbtn\] |\[in\] |\[pw\] |\[chk\] |\[x\] |\[rad\] |\[o\] |\[dd\] |\[link\] |\[img\] |\[hr\]|\[kv\] |\[mail\] |\[small\] |\[code\] )?(.*)$/);const tp=(k[1]||"").trim(),s=k[2];const cx=X0+24;
+  if(tp==="#")h+=t(cx,ly,s,{z:20,b:600}),reg(s,cx,ly-18,tw(s,20),24);
+  else if(tp==="##")h+=t(cx,ly,s,{z:15,b:600}),reg(s,cx,ly-14,tw(s,15),20);
+  else if(tp==="###")h+=t(cx,ly,s,{z:12.5,b:600}),reg(s,cx,ly-12,tw(s,12.5),18);
+  else if(tp==="[btn]"||tp==="[pbtn]"){const w=tw(s,12)+28;h+=r(cx,ly-17,w,28,tp==="[pbtn]"?BLUE:"#fbfbfb",tp==="[pbtn]"?"none":"#c8c8c8",4)+t(cx+w/2,ly+1,s,{z:12,a:"middle",c:tp==="[pbtn]"?"#fff":TX,b:tp==="[pbtn]"});reg(s,cx,ly-17,w,28);}
+  else if(tp==="[in]"||tp==="[pw]"||tp==="[dd]"){const [lab,val]=s.split("::");h+=t(cx,ly-4,lab,{z:11,c:MU});const w=Math.min(W-X0-60,320);h+=r(cx,ly+2,w,28,"#fff","#c8c8c8",4)+(tp==="[dd]"?t(cx+w-12,ly+21,"⌄",{z:12,a:"middle",c:MU}):"")+t(cx+10,ly+21,tp==="[pw]"&&val?"•".repeat(Math.min(val.length,14)):(val||""),{z:12,c:val?TX:MU});reg(lab,cx,ly+2,w,28);ly+=28;}
+  else if(tp==="[chk]"||tp==="[x]"){h+=chk(cx,ly-12,tp==="[x]")+t(cx+24,ly+1,s,{z:12});reg(s,cx-2,ly-14,tw(s,12)+30,20);}
+  else if(tp==="[rad]"||tp==="[o]"){h+=radio(cx,ly-12,tp==="[o]")+t(cx+24,ly+1,s,{z:12});reg(s,cx-2,ly-14,tw(s,12)+30,20);}
+  else if(tp==="[link]")h+=t(cx,ly,s,{z:12.5,c:"#1a0dab",u:1}),reg(s,cx,ly-13,tw(s,12.5),18);
+  else if(tp==="[small]")h+=t(cx,ly,s,{z:10.5,c:MU}),reg(s,cx,ly-11,tw(s,10.5),15);
+  else if(tp==="[code]")h+=r(cx-4,ly-14,W-56,20,"#f4f4f4","none",3)+t(cx,ly,s,{z:11.5,m:1}),reg(s,cx,ly-14,W-56,20);
+  else if(tp==="[img]")h+=r(cx,ly-16,180,96,"#dfe8f3","#b5c7dd",4)+t(cx+90,ly+36,s||"🖼",{z:12,a:"middle",c:MU}),reg(s||"image",cx,ly-16,180,96);
+  else if(tp==="[hr]")h+=ln(cx,ly-8,W-24,ly-8,"#e5e5e5");
+  else if(tp==="[kv]"){const [a,b]=s.split("::");h+=t(cx,ly,a,{z:12,c:MU})+t(cx+190,ly,fit(b||"",W-cx-214,12),{z:12});reg(a,cx,ly-13,W-cx-24,18);}
+  else if(tp==="[mail]"){const [a,b,c]=s.split("::");h+=r(cx-8,ly-15,W-cx-16,36,"#fff","#ececec",0)+t(cx,ly-1,a,{z:12,b:600})+t(cx+150,ly-1,fit(b||"",W-cx-260,12),{z:12})+t(W-24,ly-1,c||"",{z:10.5,c:MU,a:"end"});reg(a,cx-8,ly-15,W-cx-16,36);}
+  else h+=t(cx,ly,fit(s,W-cx-24,12.5),{z:12.5}),reg(s,cx,ly-13,Math.min(tw(s,12.5),W-cx-24),18);
+  ly+=lh(l);});return [h,BH];}
+const lh=l=>/^# /.test(l)?36:/^## /.test(l)?28:/^\[(in|pw|dd)\]/.test(l)?60:/^\[img\]/.test(l)?110:/^\[(btn|pbtn)\]/.test(l)?40:/^\[mail\]/.test(l)?38:/^\[hr\]/.test(l)?14:26;
+function generic(S){let [h,y]=winTitle(S,0,S.title||"Fenêtre",S.ico||"");
+ if(S.menu0){let x=10;h+=r(0,y,W,28,"#fafafa","none",0);S.menu0.forEach(m=>{h+=t(x,y+19,m,{z:11.5});reg(m,x-5,y+3,tw(m,11.5)+10,22);x+=tw(m,11.5)+20});y+=28;}
+ if(S.table){const T=S.table,cols=T[0],cw=(W-20)/cols.length;h+=r(0,y,W,26,"#fafafa","none",0);cols.forEach((c,j)=>{h+=t(10+j*cw+(j?cw-10:0),y+18,c,{z:11,c:MU,a:j?"end":"start",b:true})});y+=26;
+  T.slice(1).forEach((row,i)=>{const on=S.sel===i;h+=r(0,y,W,24,on?SEL:"#fff","none",0)+ln(0,y+24,W,y+24,"#f0f0f0");row.forEach((v,j)=>{const hot=/^!/.test(v);v=v.replace(/^!/,"");h+=(hot&&j?r(10+j*cw+4,y+2,cw-8,20,"#f7c8a8","none",0):"")+t(10+j*cw+(j?cw-14:0),y+16,fit(v,cw-16,11),{z:11,a:j?"end":"start"});reg(v,10+j*cw,y,cw,24)});reg(row[0],0,y,W,24);y+=24;});
+  const [ph,hh]=S.page?page(S,y):["",0];return [h+ph,y+hh];}
+ const [ph,hh]=page(S,y);return [h+ph,y+hh];}
+
+/* ---------- Bureau, menu Démarrer, paramètres rapides, écran de verrouillage ---------- */
+function wall(H){return `<defs><radialGradient id="wg" cx="50%" cy="85%" r="80%"><stop offset="0" stop-color="#a7c8f2"/><stop offset=".35" stop-color="#4f86d6"/><stop offset=".7" stop-color="#1f4e9b"/><stop offset="1" stop-color="#0d2b5e"/></radialGradient></defs>`+r(0,0,W,H,"url(#wg)","none",0)+`<path d="M${W*.5-170} ${H} C ${W*.5-120} ${H*.45}, ${W*.5+120} ${H*.45}, ${W*.5+170} ${H} Z" fill="#cfe2fb" fill-opacity=".35"/><path d="M${W*.5-95} ${H} C ${W*.5-60} ${H*.62}, ${W*.5+60} ${H*.62}, ${W*.5+95} ${H} Z" fill="#fff" fill-opacity=".25"/>`}
+function taskbar(S,y){let h=r(0,y,W,44,"#eef1f6","none",0,0,' fill-opacity=".96"')+ln(0,y,W,y,"#d0d6df");
+ const apps=[["start","⊞"],["Rechercher","🔍"],["Vue des tâches","⧉"],["Microsoft Edge","🌐"],["Explorateur de fichiers","📁"],["Microsoft Store","🛍"],...(S.bar||[]).map(a=>[a,ACC[a]?a:"▪"])];
+ let x=W/2-apps.length*20;apps.forEach(([n,ic])=>{const on=(S.open||[]).includes(n);if(n==="start"){h+=`<g transform="translate(${x+10},${y+12})">`+r(0,0,9,9,BLUE,"none",1)+r(11,0,9,9,BLUE,"none",1)+r(0,11,9,9,BLUE,"none",1)+r(11,11,9,9,BLUE,"none",1)+"</g>";reg("Démarrer",x+2,y+4,36,36);}
+  else if(ACC[ic])h+=appIcon(x+11,y+12,ic,18),reg(NAME[ic],x+2,y+4,36,36);else h+=t(x+20,y+28,ic,{z:17,a:"middle"}),reg(n,x+2,y+4,36,36);
+  if(on)h+=r(x+15,y+39,10,3,BLUE,"none",2);x+=40;});
+ const tr=S.tray||{};h+=t(W-210,y+28,"⌃",{z:12,c:"#333"});reg("Afficher les icônes cachées",W-218,y+8,18,28);
+ const ic=(tr.air?"✈ ":"")+(tr.net===false?"🌐⃠ ":tr.air?"":"📶 ")+"🔊 "+(tr.bat===false?"":"🔋");h+=r(W-190,y+6,92,32,"none","none",4)+t(W-184,y+28,ic,{z:13});reg("Zone des paramètres rapides",W-190,y+6,92,32);if(tr.air)reg("icône Mode avion",W-186,y+10,18,24);
+ h+=t(W-56,y+20,tr.time||"10:30",{z:11,a:"middle"})+t(W-56,y+35,tr.date||"12/11/2026",{z:11,a:"middle"});reg("Horloge",W-92,y+6,72,34);h+=t(W-12,y+28,"🔔",{z:11,a:"end"});reg("Notifications",W-22,y+10,16,24);
+ return h;}
+function desktop(S){const H=S.h||(S.start||S.quick?470:340);let h=wall(H);
+ (S.icons||["🗑 Corbeille","💻 Ce PC","📁 Documents"]).forEach((ic,i)=>{const [e,...n]=ic.split(" ");const lab=n.join(" ");const per=Math.max(1,Math.floor((H-56)/76)),x=12+Math.floor(i/per)*84,y=12+(i%per)*76;const sel=S.selIcon===lab;
+  h+=(sel?r(x,y,72,66,"#fff","#fff",3,1,' fill-opacity=".25" stroke-opacity=".5"'):"")+t(x+36,y+34,e,{z:26,a:"middle"})+t(x+36,y+54,fit(lab,74,10.5),{z:10.5,a:"middle",c:"#fff",b:600});reg(lab,x,y,72,66);});
+ if(S.win){const w=S.win;h+=sh(W*.32,40,W*.5,H-130)+r(W*.32,40,W*.5,H-130,"#fff","#bbb",8)+r(W*.32,40,W*.5,30,BG,"none",8)+t(W*.32+12,60,fit(w,W*.36,11.5),{z:11.5})+t(W*.82-12,60,"─   ☐   ✕",{z:11,a:"end"});reg(w,W*.32,40,W*.5,30);}
+ if(S.start)h+=startMenu(S,H);
+ if(S.quick)h+=quick(S,H);
+ if(S.ctx)h+=menuAt(S.ctx,S.ctxAt||[260,120]);
+ h+=taskbar(S,H-44);return [h,H];}
+function startMenu(S,H){const w=Math.min(540,W-40),x=(W-w)/2,y=12,hh=H-44-24;let h=sh(x,y,w,hh,10)+r(x,y,w,hh,"#f2f4f8","#d5d9e0",10);
+ h+=r(x+24,y+18,w-48,32,"#fff","#c9ced6",16)+t(x+40,y+39,"🔍  Recherchez des applications, des paramètres et des documents",{z:11,c:MU});reg("Barre de recherche du menu Démarrer",x+24,y+18,w-48,32);
+ h+=t(x+36,y+76,"Épinglé",{z:12,b:600})+r(x+w-120,y+62,84,22,"#fff","#d0d0d0",4)+t(x+w-78,y+77,"Toutes ›",{z:11,a:"middle"});reg("Toutes",x+w-120,y+62,84,22);
+ const P=S.pinned||[["🌐","Edge"],["word","Word"],["excel","Excel"],["ppt","PowerPoint"],["outlook","Outlook"],["🛍","Microsoft Store"],["⚙","Paramètres"],["📁","Explorateur de fichiers"],["🧮","Calculatrice"],["🗒","Bloc-notes"],["✂","Outil Capture"],["🎨","Paint"]];
+ const cw=(w-48)/6;P.forEach(([ic,l],i)=>{const cx=x+24+(i%6)*cw,cy=y+92+Math.floor(i/6)*66;h+=(ACC[ic]?appIcon(cx+cw/2-14,cy+6,ic,28):t(cx+cw/2,cy+30,ic,{z:24,a:"middle"}))+t(cx+cw/2,cy+52,fit(l,cw-4,10),{z:10,a:"middle"});reg(l,cx+2,cy,cw-4,60);});
+ const ry=y+92+Math.ceil(P.length/6)*66+10;if(ry<y+hh-110){h+=t(x+36,ry+8,"Recommandé",{z:12,b:600});(S.rec||[["📄","Rapport-stage.docx","Il y a 2 h"],["📊","Budget-2026.xlsx","Hier à 18:04"]]).slice(0,4).forEach((it,i)=>{const cx=x+30+(i%2)*(w/2-20),cy=ry+20+Math.floor(i/2)*40;h+=t(cx,cy+20,it[0],{z:16})+t(cx+26,cy+14,fit(it[1],w/2-70,11),{z:11})+t(cx+26,cy+29,it[2],{z:9.5,c:MU});reg(it[1],cx-4,cy,w/2-40,36)});}
+ const by=y+hh-50;h+=ln(x,by,x+w,by,"#dde1e7")+r(x,by,w,50,"#e9ecf1","none",0,0)+ci(x+44,by+25,13,"#c7d6e8")+t(x+44,by+30,"👤",{z:12,a:"middle"})+t(x+64,by+30,S.user||"Awa Mensah",{z:11.5});reg("Compte utilisateur",x+26,by+8,140,34);
+ h+=t(x+w-40,by+31,"⏻",{z:17,a:"middle"});reg("Marche/Arrêt",x+w-56,by+9,32,32);
+ if(S.power){const px=x+w-180,py=by-(S.power==="full"?150:110);h+=sh(px,py,170,S.power==="full"?140:100,8)+r(px,py,170,S.power==="full"?140:100,"#f9f9f9","#d0d0d0",8);const opts=S.power==="full"?[["🔒","Verrouiller"],["🌙","Mettre en veille"],["⏻","Arrêter"],["⟳","Redémarrer"]]:[["🌙","Mettre en veille"],["⏻","Arrêter"],["⟳","Redémarrer"]];opts.forEach(([ic,l],i)=>{h+=t(px+18,py+26+i*32,ic,{z:13,a:"middle"})+t(px+38,py+30+i*32,l,{z:12});reg(l,px+4,py+10+i*32,162,30);});}
+ return h;}
+function quick(S,H){const Q=S.qs||{},w=330,x=W-w-12,hh=268,y=H-44-hh-10;let h=sh(x,y,w,hh,10)+r(x,y,w,hh,"#f3f5f9","#d5d9e0",10);
+ const tiles=[["📶","Wi-Fi",Q.wifi!==false&&!Q.air,Q.ssid||"MK-WIFI"],["ᛒ","Bluetooth",!!Q.bt,""],["✈","Mode avion",!!Q.air,""],["🔋","Économiseur d'énergie",!!Q.eco,""],["♿","Accessibilité",false,""],["🌙","Éclairage nocturne",!!Q.night,""]];
+ tiles.forEach(([ic,l,on,sub],i)=>{const tx=x+16+(i%3)*102,ty=y+16+Math.floor(i/3)*78;h+=r(tx,ty,94,46,on?BLUE:"#fbfbfb",on?BLUE:"#d5d5d5",6)+t(tx+(l==="Wi-Fi"||l==="Bluetooth"?30:47),ty+29,ic,{z:15,a:"middle",c:on?"#fff":TX});if(l==="Wi-Fi"||l==="Bluetooth")h+=ln(tx+62,ty+8,tx+62,ty+38,on?"#ffffff88":"#ccc")+t(tx+78,ty+29,"›",{z:14,a:"middle",c:on?"#fff":TX});
+  h+=t(tx+47,ty+62,fit(sub&&on?sub:l,98,10),{z:10,a:"middle"});reg(l,tx,ty,94,46);});
+ const sy=y+178;h+=t(x+22,sy+5,"☀",{z:14,a:"middle"})+ln(x+44,sy,x+w-24,sy,"#8a8a8a",3)+ln(x+44,sy,x+44+(w-68)*(Q.lum||.7),sy,BLUE,3)+ci(x+44+(w-68)*(Q.lum||.7),sy,7,"#fff","#c0c0c0");reg("Luminosité",x+10,sy-12,w-20,24);
+ h+=t(x+22,sy+41,"🔊",{z:13,a:"middle"})+ln(x+44,sy+36,x+w-24,sy+36,"#8a8a8a",3)+ln(x+44,sy+36,x+44+(w-68)*(Q.vol||.5),sy+36,BLUE,3)+ci(x+44+(w-68)*(Q.vol||.5),sy+36,7,"#fff","#c0c0c0");reg("Volume",x+10,sy+24,w-20,24);
+ h+=r(x,y+hh-36,w,36,"#e9ecf1","none",0)+t(x+16,y+hh-13,"🔋 "+(Q.bat||"78 %"),{z:11})+t(x+w-50,y+hh-13,"✎",{z:12})+t(x+w-20,y+hh-13,"⚙",{z:12,a:"middle"});reg("Batterie",x+8,y+hh-32,80,28);reg("Tous les paramètres",x+w-34,y+hh-32,28,28);
+ return h;}
+function lock(S){const H=300;let h=wall(H);if(S.login){h+=ci(W/2,90,40,"#dfe7f2")+t(W/2,104,"👤",{z:36,a:"middle"})+t(W/2,160,S.user||"Awa Mensah",{z:18,c:"#fff",b:600,a:"middle"});
+  h+=r(W/2-110,178,220,32,"#fff","#fff",4,1,' fill-opacity=".9"')+t(W/2-98,199,S.pin?"Code confidentiel":"Mot de passe",{z:12,c:MU})+r(W/2+80,181,26,26,BLUE,"none",3)+t(W/2+93,199,"→",{z:13,c:"#fff",a:"middle"});reg("zone de saisie",W/2-110,178,220,32);reg("Valider",W/2+80,181,26,26);
+  h+=t(W/2,232,"Options de connexion",{z:11,c:"#fff",a:"middle"})+t(W-20,H-16,"🌐  ♿  ⏻",{z:14,c:"#fff",a:"end"});reg("Options de connexion",W/2-60,220,120,18);reg("Marche/Arrêt",W-40,H-34,26,26);}
+ else{h+=t(W/2,120,S.time||"10:30",{z:64,c:"#fff",a:"middle",b:600})+t(W/2,152,S.date||"jeudi 12 novembre",{z:16,c:"#fff",a:"middle"})+t(W-20,H-16,"📶  🔋",{z:14,c:"#fff",a:"end"});}
+ return [h,H];}
+
+/* ---------- menus contextuels, listes déroulantes et boîtes de dialogue ---------- */
+function menuAt(M,at){const items=M.items||M,top=M.top||null;let mw=Math.max(170,...items.map(i=>{const [a,k]=String(i).split("::");return tw(a.replace(/^\S+\s/,""),12)+(/›$/.test(i)?60:46)+(k?tw(k,10.5)+24:0)}));
+ const ih=i=>i==="—"?9:30;let mh=items.reduce((a,i)=>a+ih(i),12)+(top?46:0);let [x,y]=at;x=Math.min(Math.max(4,x),W-mw-4);const lim=(BX.__H||9999)-4;if(BX.__clamp&&y+mh>lim)y=Math.max(4,lim-mh);BX.__maxY=Math.max(BX.__maxY||0,y+mh+6);
+ let h=sh(x,y,mw,mh,8)+r(x,y,mw,mh,"#f9f9f9","#d0d0d0",8);let yy=y+6;
+ if(top){const bw=(mw-12)/top.length;top.forEach((b,i)=>{const[ic,...n]=b.split(" ");h+=t(x+6+bw*i+bw/2,yy+25,ic,{z:15,a:"middle"});reg(n.join(" ")||ic,x+6+bw*i,yy+4,bw,32)});yy+=40;h+=ln(x+4,yy,x+mw-4,yy,"#e3e3e3");yy+=6;}
+ items.forEach((it,i)=>{if(it==="—"){h+=ln(x+8,yy+4,x+mw-8,yy+4,"#e3e3e3");yy+=9;return}let s=String(it),sub=/›$/.test(s);s=s.replace(/\s*›$/,"");let k="";if(s.includes("::")){[s,k]=s.split("::")}
+  const m=s.match(/^(\S+)\s(.*)$/);const hasIc=m&&(EMO.test(m[1])||m[1].length<=2&&!/[a-zA-Z]/.test(m[1]));const lab=hasIc?m[2]:s,ic=hasIc?m[1]:"";const dis=/^~/.test(lab);const L=lab.replace(/^~/,"");
+  if(M.sel===i)h+=r(x+4,yy,mw-8,28,"#e9e9e9","none",4);h+=(ic?t(x+20,yy+19,ic,{z:13,a:"middle"}):"")+t(x+38,yy+19,L,{z:12,c:dis?"#a0a0a0":TX})+(k?t(x+mw-(sub?28:12),yy+19,k,{z:10.5,c:MU,a:"end"}):"")+(sub?t(x+mw-14,yy+19,"›",{z:13,a:"middle",c:MU}):"");reg(L,x+4,yy,mw-8,28);yy+=30;});
+ return h;}
+function dialog(D){const w=Math.min(D.w||430,W-30),rows=D.rows||[];const rh=rr=>/^\[(in|pw|dd|ta)\]/.test(rr)?48:/^\[img\]/.test(rr)?100:/^\[list\]/.test(rr)?Math.min(8,rr.split("|").length)*24+10:28;
+ const hh=40+rows.reduce((a,x)=>a+rh(x),10)+(D.btn?52:10);const x=D.x!=null?D.x:(W-w)/2,y=D.y!=null?D.y:Math.max(10,(BX.__H||400)/2-hh/2);BX.__maxY=Math.max(BX.__maxY||0,y+hh+8);
+ let h=sh(x,y,w,hh,8)+r(x,y,w,hh,"#fff","#bdbdbd",8)+r(x,y,w,36,"#f3f3f3","none",8)+r(x,y+28,w,8,"#f3f3f3","none",0)+t(x+14,y+23,D.t||"",{z:12,b:600})+t(x+w-16,y+23,"✕",{z:11,a:"middle"});
+ let yy=y+52;rows.forEach(rr=>{const m=rr.match(/^(\[\w+\]) ?(.*)$/)||["","",rr];const tp=m[1],s=m[2];
+  if(tp==="[in]"||tp==="[pw]"||tp==="[dd]"||tp==="[ta]"){const [lab,val]=s.split("::");h+=t(x+16,yy+4,lab,{z:11.5});const fx=x+16,fw=w-32;h+=r(fx,yy+10,fw,26,"#fff","#8a8a8a",3)+r(fx,yy+34,fw,2,BLUE,"none",0)+t(fx+8,yy+28,tp==="[pw]"?"•".repeat((val||"").length):fit(val||"",fw-30,12),{z:12})+(tp==="[dd]"?t(fx+fw-12,yy+28,"⌄",{z:12,a:"middle",c:MU}):"");reg(lab,fx,yy+10,fw,26);if(val)reg(val,fx,yy+10,fw,26);yy+=48;}
+  else if(tp==="[x]"||tp==="[chk]"){h+=chk(x+16,yy-4,tp==="[x]")+t(x+40,yy+9,s,{z:12});reg(s,x+12,yy-8,tw(s,12)+36,24);yy+=28;}
+  else if(tp==="[o]"||tp==="[rad]"){h+=radio(x+16,yy-4,tp==="[o]")+t(x+40,yy+9,s,{z:12});reg(s,x+12,yy-8,tw(s,12)+36,24);yy+=28;}
+  else if(tp==="[sp]"){const [lab,val]=s.split("::");h+=t(x+16,yy+9,lab,{z:12})+r(x+w-120,yy-6,100,24,"#fff","#8a8a8a",3)+t(x+w-112,yy+10,val||"",{z:12})+t(x+w-30,yy+10,"⇕",{z:11,c:MU});reg(lab,x+w-120,yy-6,100,24);yy+=28;}
+  else if(tp==="[list]"){const its=s.split("|");its.slice(0,8).forEach((it,i)=>{const on=/^\*/.test(it);it=it.replace(/^\*/,"");h+=r(x+16,yy-6+i*24,w-32,24,on?SEL:"#fff",on?"#99c9ef":"#e3e3e3",0)+t(x+24,yy+10+i*24,fit(it,w-50,11.5),{z:11.5});reg(it,x+16,yy-6+i*24,w-32,24)});yy+=Math.min(8,its.length)*24+10;}
+  else if(tp==="[b]")h+=t(x+16,yy+9,s,{z:12,b:600}),reg(s,x+16,yy-6,tw(s,12),20),yy+=28;
+  else if(tp==="[small]")h+=t(x+16,yy+9,fit(s,w-32,10.5),{z:10.5,c:MU}),yy+=28;
+  else if(tp==="[img]"){h+=r(x+16,yy-6,w-32,86,"#f3f3f3","#d6d6d6",3)+t(x+w/2,yy+40,s,{z:11.5,a:"middle",c:MU});reg("aperçu",x+16,yy-6,w-32,86);yy+=100;}
+  else h+=t(x+16,yy+9,fit(s,w-32,12),{z:12}),reg(s,x+16,yy-6,Math.min(tw(s,12),w-32),20),yy+=28;});
+ if(D.btn){let bx=x+w-14;const by=y+hh-42;h+=r(x,by-6,w,48,"#f3f3f3","none",0)+r(x,by+30,w,12,"#f3f3f3","none",8);[...D.btn].reverse().forEach((b,i)=>{const prim=(D.def||D.btn[0])===b,bw=Math.max(84,tw(b,12)+28);bx-=bw;h+=r(bx,by,bw,30,prim?BLUE:"#fbfbfb",prim?"none":"#c8c8c8",4)+t(bx+bw/2,by+19,b,{z:12,a:"middle",c:prim?"#fff":TX});reg(b,bx,by,bw,30);bx-=8;});}
+ return h;}
+
+/* ---------- claviers ---------- */
+const FIC={F1:"🔇",F2:"🔉",F3:"🔊",F4:"🎤",F5:"🔅",F6:"🔆",F7:"🖵",F8:"✈",F9:"⚙",F10:"🖼",F11:"⎙",F12:"★"};
+function cap(x,y,w,hh,main,o={}){const hot=o.hot,mode=o.mode;let h=r(x,y+2,w,hh,"#9aa3ad","none",5)+r(x,y,w,hh,hot?"#fff4d6":(o.dark?"#3b3f45":"#fdfdfd"),hot?"#e3008c":(o.dark?"#24272b":"#b9c0c8"),5,hot?2:1);
+ const c=o.dark?"#f2f2f2":TX;
+ if(o.sec){h+=t(x+w/2,y+hh*.47,o.sec,{z:Math.min(15,hh*.38),a:"middle",c:mode==="media"?TX:"#7a7a7a"})+t(x+w/2,y+hh*.84,main,{z:Math.min(11,hh*.28),a:"middle",c:mode==="media"?"#7a7a7a":"#0b57b7",b:600});}
+ else if(o.top){h+=t(x+6,y+hh*.38,o.top,{z:Math.min(12,hh*.3),c})+t(x+6,y+hh*.82,main,{z:Math.min(12,hh*.3),c});}
+ else h+=t(x+w/2,y+hh/2+Math.min(13,hh*.36)/2.8,main,{z:main.length>3?Math.min(10.5,hh*.3):Math.min(13,hh*.36),a:"middle",c,b:main.length<=3?600:400});
+ return h;}
+function keysShot(S){const rows=[];if(S.keys)rows.push(["🖥 Ordinateur de bureau",S.keys]);if(S.lap)rows.push(["💻 Ordinateur portable",S.lap]);if(S.alt)rows.push([S.altLabel||"Autre possibilité",S.alt]);
+ const H=rows.length*86+16;let h=r(0,0,W,H,"#f6f8fb","#e1e6ee",8);
+ rows.forEach(([lab,ks],i)=>{const y=14+i*86;h+=t(16,y+14,lab,{z:12,b:600,c:"#3b4a5e"});let x=16;
+  ks.forEach((k,j)=>{if(j)h+=t(x+10,y+52,"+",{z:22,a:"middle",c:"#5b6573",b:600}),x+=22;const fk=/^F\d{1,2}$/.test(k)&&/portable/.test(lab)&&S.icons!==false;const w=Math.max(54,tw(k,13)+26);
+   h+=cap(x,y+24,w,46,k,{hot:true,sec:fk?(S.icons&&S.icons[k])||FIC[k]:null,mode:fk?"fn":null});reg(k+(i?" (portable)":""),x,y+24,w,46);x+=w+4;});
+  if(S.notes&&S.notes[i])h+=t(x+18,y+52,fit(S.notes[i],W-x-30,11.5),{z:11.5,c:"#3b4a5e"});});
+ return [h,H];}
+function frow(S){const H=S.full?300:170;let h=r(0,0,W,H,"#f6f8fb","#e1e6ee",8);const hi=new Set((S.press||[]).map(nm));
+ const desk=()=>{let y=26,x=14;h+=t(14,18,"🖥 Clavier d'ordinateur de bureau : les touches F sont imprimées seules",{z:12,b:600,c:"#3b4a5e"});
+  h+=cap(x,y,40,34,"Échap",{hot:hi.has("échap")});x+=58;for(let i=1;i<=12;i++){const k="F"+i;h+=cap(x,y,38,34,k,{hot:hi.has(nm(k))});reg(k,x,y,38,34);x+=40+(i%4===0?12:0);}reg("Échap",14,y,40,34);};
+ const lap=yy=>{let y=yy,x=14;h+=t(14,y-8,"💻 Clavier d'ordinateur portable : chaque touche F a un 2ᵉ rôle (icône)",{z:12,b:600,c:"#3b4a5e"});
+  h+=cap(x,y,40,40,"Échap",{hot:hi.has("échap")||hi.has("fnlock"),sec:"🔒",mode:"fn"});reg("Échap ",x,y,40,40);reg("FnLock",x,y,40,40);x+=44;
+  for(let i=1;i<=12;i++){const k="F"+i,ic=(S.icons&&S.icons[k])||FIC[k];h+=cap(x,y,38,40,k,{hot:hi.has(nm(k)),sec:ic,mode:"fn"});reg(k+" (portable)",x,y,38,40);x+=40;}
+  h+=cap(x,y,44,40,"Suppr",{});
+  const by=y+52;h+=cap(14,by,58,36,"Ctrl",{hot:hi.has("ctrl")})+cap(76,by,46,36,"Fn",{hot:true,dark:false})+cap(126,by,46,36,"⊞",{hot:hi.has("windows")})+cap(176,by,46,36,"Alt",{hot:hi.has("alt")})+cap(226,by,200,36,"Espace",{});reg("Fn",76,by,46,36);reg("Ctrl",14,by,58,36);reg("Alt",176,by,46,36);reg("Windows",126,by,46,36);
+  h+=t(436,by+14,"Fn se trouve en bas à gauche.",{z:11,c:"#3b4a5e"})+t(436,by+30,"Maintenez-la + touche F.",{z:11,c:"#3b4a5e"});};
+ if(S.full){desk();lap(130);}else lap(36);
+ return [h,H];}
+const AZ=[["²","&","é","\"","'","(","-","è","_","ç","à",")","=","⌫"],["⇥","A","Z","E","R","T","Y","U","I","O","P","^","$","↵"],["⇪","Q","S","D","F","G","H","J","K","L","M","ù","*"],["⇧","<","W","X","C","V","B","N",",",";",":","!","⇧ "],["Ctrl","Fn","⊞","Alt","Espace","Alt Gr","Ctrl ","◀","▲▼","▶"]];
+const KW={"⌫":62,"⇥":48,"↵":46,"⇪":58,"⇧":44,"⇧ ":80,"Ctrl":46,"Fn":36,"⊞":36,"Alt":36,"Espace":200,"Alt Gr":46,"Ctrl ":46};
+const TOPS={"&":"1","é":"2","\"":"3","'":"4","(":"5","-":"6","è":"7","_":"8","ç":"9","à":"0",")":"°","=":"+",",":"?",";":".",":":"/","!":"§","ù":"%","*":"µ","^":"¨","$":"£","<":">"};
+const ALTGR={"é":"~","\"":"#","'":"{","(":"[","-":"|","è":"`","_":"\\","ç":"^","à":"@",")":"]","=":"}","E":"€"};
+function kbd(S){const H=S.frow===false?232:276;let h=r(0,0,W,H,"#f6f8fb","#e1e6ee",8);const hi=new Set((S.press||[]).map(k=>k));const lap=S.lap!==false;
+ let y=12;if(S.frow!==false){let x=10;h+=cap(x,y,36,34,"Échap",{hot:hi.has("Échap")});x+=40;for(let i=1;i<=12;i++){const k="F"+i;h+=cap(x,y,37,34,k,{hot:hi.has(k),sec:lap?FIC[k]:null,mode:"fn"});x+=39;}y+=44;}
+ AZ.forEach(row=>{let x=10;row.forEach(k=>{const w=(KW[k]||36)*1.0;const top=TOPS[k];const ag=S.altgr&&ALTGR[k];const lab=k==="⊞"?"⊞":k;
+  if(k==="Fn"&&!lap){x+=0;return}
+  h+=cap(x,y,w,38,lab.trim(),{hot:hi.has(k)||hi.has(k.trim()),top:top||null,dark:false});if(ag)h+=t(x+w-5,y+33,ALTGR[k],{z:10,a:"end",c:"#c42b1c",b:600});reg("touche "+k.trim(),x,y,w,38);x+=w+3;});y+=42;});
+ return [h,H];}
+
+/* ---------- surlignage numéroté ---------- */
+function marks(S){let h="";const HI=S._hi||{};let n=0;
+ Object.entries(HI).forEach(([lab,num])=>{let k=nm(lab),idx=-1;const m=k.match(/^(.*)#(\d+)$/);if(m){k=m[1].trim();idx=+m[2]-1}const L=BX[k]||[];const b=idx<0?L[L.length-1]:L[idx];if(!b)return;n++;
+  const [x,y,w,hh]=b;h+=r(x-3,y-3,w+6,hh+6,"none",HI_C,6,2.5);
+  if(num!==0&&num!==""&&num!=null){const bx=Math.min(Math.max(x-6,12),W-12),by=Math.max(y-6,12);h+=ci(bx,by,11,HI_C,"#fff",2)+t(bx,by+4.5,String(num),{z:12,c:"#fff",b:700,a:"middle"});}});
+ if(S.arrow){const [lab,dir]=S.arrow;const b=(BX[nm(lab)]||[])[0];if(b){const [x,y,w,hh]=b;const cx=x+w/2,cy=y+hh/2;const L=dir==="up"?[cx,cy+hh/2+46,cx,y+hh+8]:dir==="left"?[x+w+56,cy,x+w+8,cy]:dir==="right"?[x-56,cy,x-8,cy]:[cx,y-46,cx,y-8];const a=Math.atan2(L[3]-L[1],L[2]-L[0]);h+=ln(L[0],L[1],L[2],L[3],HI_C,3)+`<polygon points="${L[2]},${L[3]} ${L[2]-12*Math.cos(a-.45)},${L[3]-12*Math.sin(a-.45)} ${L[2]-12*Math.cos(a+.45)},${L[3]-12*Math.sin(a+.45)}" fill="${HI_C}"/>`;}}
+ if(S.cursor){const b=(BX[nm(S.cursor)]||[])[0];if(b){const x=b[0]+b[2]*.6,y=b[1]+b[3]*.62;h+=`<path d="M${x} ${y} l0 18 l4.5 -4 l3.2 7 l2.6 -1.2 l-3.2 -6.8 l6 -0.4 Z" fill="#fff" stroke="#000" stroke-width="1.2"/>`;}}
+ return h;}
+const HI_C="#e3008c";
+
+/* ---------- point d'entrée ---------- */
+function render(S){BX={};W=S.w||(["keys","frow","kbd"].includes(S.app)?620:720);
+ const hi=Array.isArray(S.hi)?Object.fromEntries(S.hi.map((x,i)=>Array.isArray(x)?x:[x,i+1])):(typeof S.hi==="string"?{[S.hi]:1}:(S.hi||{}));S._hi=hi;
+ let body="",H=0;const app=S.app||"generic";
+ if(ACC[app]&&app!=="outlook"&&app!=="access"||app==="outlook"||app==="access"){const [h1,y1]=office(S,app);body=h1;H=y1;
+  if(S.tab==="Fichier"){const [h2,y2]=backstage(S,app,H);body+=h2;H+=y2;}
+  else{let h2="",y2=0;if(app==="word")[h2,y2]=bodyDoc(S,H);else if(app==="excel")[h2,y2]=bodyGrid(S,H);else if(app==="ppt")[h2,y2]=bodySlide(S,H);else if(app==="outlook")[h2,y2]=mailBody(S,H);else [h2,y2]=accessBody(S,H);
+   body+=h2;H+=y2;if(S.status!==false&&app!=="outlook"&&app!=="access"){const[h3,y3]=status(S,app,H);body+=h3;H+=y3;}}}
+ else{const f={explorer,settings,notepad,term,edge,desktop,lock,keys:keysShot,frow,kbd,generic}[app]||generic;[body,H]=f(S);}
+ BX.__H=H;BX.__clamp=S.app==="desktop";
+ if(S.menu){const M=S.menu;let at=M.at;if(typeof at==="string"){const b=(BX[nm(at)]||[])[0];at=b?[b[0]+(M.dx!=null?M.dx:Math.min(b[2]*.5,60)),b[1]+b[3]+(M.dy||2)]:[W/2,80];}body+=menuAt(M,at||[W/2,80]);
+  if(M.sub){const S2=M.sub;const b=(BX[nm(S2.from)]||[])[0];if(b)body+=menuAt(S2,[b[0]+b[2]+2,b[1]-4]);}}
+ if(S.dlg)body+=dialog(S.dlg);
+ if(S.tip2){const b=(BX[nm(S.tip2[0])]||[])[0];if(b){const s=S.tip2[1],w=Math.min(tw(s,11)+20,280);const x=Math.min(b[0],W-w-6),y=b[1]+b[3]+8;body+=sh(x,y,w,26,4)+r(x,y,w,26,"#fff","#c8c8c8",4)+t(x+10,y+17,fit(s,w-14,11),{z:11});}}
+ body+=marks(S);
+ const fullH=Math.ceil(Math.max(H,S.minH||0,BX.__maxY||0));
+ return `<svg class="shot" viewBox="0 0 ${W} ${fullH}" style="width:100%;max-width:${W}px;display:block;margin:0 auto" role="img" aria-label="${X(S.cap||"Capture d'écran reproduite")}" font-family="${FONT}" font-size="12"><clipPath id="sc${++UID}"><rect width="${W}" height="${fullH}" rx="${["keys","frow","kbd"].includes(app)?8:8}"/></clipPath><g clip-path="url(#sc${UID})">${r(0,0,W,fullH,"#fff","none",0)}${body}</g>${r(.5,.5,W-1,fullH-1,"none","#c9c9c9",8)}</svg>`;}
+let UID=0;
+function backstage(S,app,y){const a=ACC[app],BH=Math.max(300,(S.page||[]).reduce((s,l)=>s+lh(l),60));let h=r(0,y-28,170,BH+28,a,"none",0)+t(20,y-6,"←",{z:16,c:"#fff"});
+ const nav=["Accueil","Nouveau","Ouvrir","—","Informations","Enregistrer","Enregistrer sous","Imprimer","Partager","Exporter","Fermer","—","Compte","Options"];let ny=y+12;
+ nav.forEach(n=>{if(n==="—"){h+=ln(16,ny+2,154,ny+2,"#ffffff55");ny+=10;return}const on=n===(S.bs||"Informations");h+=(on?r(0,ny-2,170,28,"#ffffff33","none",0):"")+t(22,ny+16,n,{z:12,c:"#fff",b:on});reg(n,0,ny-2,170,28);ny+=29;});
+ h+=r(170,y-28,W-170,BH+28,"#fff","none",0);const [ph]=page({page:S.page,_x0:170,_minH:BH},y);h+=ph;return [h,BH];}
+function mailBody(S,y){const BH=Math.max(260,(S.mails||[]).length*48+60);let h=r(0,y,W,BH,"#fff","none",0)+r(0,y,170,BH,"#f6f6f6","none",0);
+ let fy=y+20;(S.folders||["📥 Boîte de réception","📤 Éléments envoyés","📝 Brouillons","🗑 Éléments supprimés","🚫 Courrier indésirable","🗄 Archive"]).forEach(f=>{const lab=f.replace(/^\S+\s/,"");const on=lab===(S.folder||"Boîte de réception");h+=(on?r(6,fy-15,158,26,"#dbe8f8","none",4):"")+t(14,fy+3,fit(f,150,11.5),{z:11.5,b:on});reg(lab,6,fy-15,158,26);fy+=30;});
+ const lx=172,lw=Math.min(260,(W-172)*.5);h+=ln(lx+lw,y,lx+lw,y+BH,"#e5e5e5");h+=t(lx+10,y+20,"Prioritaire   Autres",{z:11,b:600,c:"#0f6cbd"});
+ let my=y+34;(S.mails||[]).forEach((m,i)=>{const on=S.sel===i;const [from,subj,time,unread]=m;h+=r(lx,my,lw,46,on?"#cfe4fa":"#fff","none",0)+(unread?r(lx,my,3,46,"#0f6cbd","none",0):"")+t(lx+12,my+17,fit(from,lw-70,11.5),{z:11.5,b:unread})+t(lx+lw-8,my+17,time||"",{z:10,a:"end",c:MU})+t(lx+12,my+34,fit(subj,lw-20,11),{z:11,c:unread?"#0f6cbd":MU});reg(from,lx,my,lw,46);reg(subj,lx,my,lw,46);my+=48;});
+ const rx=lx+lw+12,rw=W-rx-10;const R=S.read;if(R){h+=t(rx,y+26,fit(R.subj||"",rw,15),{z:15,b:600})+ci(rx+14,y+52,13,"#c7d6e8")+t(rx+14,y+56,"👤",{z:11,a:"middle"})+t(rx+34,y+50,fit(R.from||"",rw-40,11.5),{z:11.5,b:600})+t(rx+34,y+64,fit("À : "+(R.to||"moi"),rw-40,10),{z:10,c:MU});
+  let ry=y+92;(R.body||[]).forEach(l=>{h+=t(rx,ry,fit(l,rw,11.5),{z:11.5});ry+=19});
+  h+=r(rx,y+BH-40,80,26,"#fff","#c8c8c8",4)+t(rx+40,y+BH-23,"↩ Répondre",{z:11,a:"middle"})+r(rx+88,y+BH-40,84,26,"#fff","#c8c8c8",4)+t(rx+130,y+BH-23,"↪ Transférer",{z:11,a:"middle"});reg("Répondre (bouton)",rx,y+BH-40,80,26);reg("Transférer (bouton)",rx+88,y+BH-40,84,26);}
+ if(S.compose){const C=S.compose;h+=r(rx-6,y,W-rx+6,BH,"#fff","none",0);let cy=y+14;h+=r(rx,cy,64,28,"#0f6cbd","none",4)+t(rx+32,cy+18,"Envoyer",{z:11.5,c:"#fff",a:"middle"});reg("Envoyer",rx,cy,64,28);h+=t(rx+76,cy+18,"📎 Joindre",{z:11.5});reg("Joindre un fichier",rx+72,cy+2,70,24);cy+=40;
+  [["À",C.to],["Cc",C.cc],["Objet",C.subj]].forEach(([l,v])=>{h+=t(rx,cy+16,l,{z:11.5,c:MU})+ln(rx+44,cy+24,W-14,cy+24,"#d0d0d0")+t(rx+48,cy+16,fit(v||"",W-rx-70,11.5),{z:11.5});reg(l,rx,cy,W-rx-14,26);cy+=30;});
+  if(C.att)h+=r(rx,cy+2,Math.min(200,tw(C.att,11)+40),24,"#f3f3f3","#d0d0d0",4)+t(rx+8,cy+18,"📄 "+C.att,{z:11}),reg(C.att,rx,cy+2,200,24),cy+=32;
+  (C.body||[]).forEach(l=>{cy+=19;h+=t(rx,cy,fit(l,W-rx-20,11.5),{z:11.5})});}
+ return [h,BH];}
+function accessBody(S,y){const BH=Math.max(220,((S.table||[]).length+1)*24+40);let h=r(0,y,W,BH,"#fff","none",0)+r(0,y,170,BH,"#f6f6f6","none",0)+t(10,y+20,"Tous les objets Access",{z:11,b:600});
+ let ny=y+44;(S.objs||["Tables","▦ Clients","▦ Produits","▦ Commandes","Requêtes","? R_Clients_Cotonou","Formulaires","🗔 F_Clients","États","🗎 E_Commandes"]).forEach(o=>{const head=!/^\S+\s/.test(o)||["Tables","Requêtes","Formulaires","États"].includes(o);h+=t(head?10:22,ny,fit(o,150,11),{z:11,b:head,c:head?"#a4373a":TX});reg(o.replace(/^\S+\s/,""),6,ny-14,160,20);ny+=20;});
+ if(S.table){const T=S.table,cols=T[0],cw=(W-190)/cols.length;let ty=y+10;h+=r(180,ty,W-190,24,"#f3f3f3","#d0d0d0",0);cols.forEach((c,j)=>{h+=t(186+j*cw,ty+16,fit(c,cw-10,11),{z:11,b:600});reg(c,180+j*cw,ty,cw,24)});ty+=24;
+  T.slice(1).forEach((row,i)=>{h+=r(180,ty,W-190,22,i===S.sel?SEL:"#fff","#e0e0e0",0);row.forEach((v,j)=>{h+=t(186+j*cw,ty+15,fit(v,cw-10,11),{z:11});reg(v,180+j*cw,ty,cw,22)});ty+=22;});}
+ if(S.page){const [p]=page({page:S.page,_x0:170,_minH:BH},y);h+=p;}
+ return [h,BH];}
+return {render,reg:()=>BX};
+})();
+
+
+const shotFig=(S,k)=>{try{return `<figure class="shotfig">${SHOT.render(S)}<figcaption>${S.cap?`<b>${k?k+" — ":""}</b>${md(S.cap)}`:(k?`<b>${k}</b>`:"")}<span class="shotsrc">Reproduction fidèle de l’écran ${S.app==="keys"||S.app==="kbd"||S.app==="frow"?"du clavier":"Windows 11 / Microsoft 365"}</span></figcaption></figure>`}catch(e){console.warn("SHOT",e);return""}};
+function lessonHTML(){const L=CUR.D.lesson;if(!L)return"";return L.parts.map((p,i)=>{let fig=0;const F=S=>shotFig(S,"Capture "+(i+1)+"."+(++fig));return `<div class="card"><small>Partie ${i+1} sur ${L.parts.length}</small><h2>${esc(p.t)}</h2>${(p.p||[]).map(x=>`<p>${md(x)}</p>`).join("")}${p.img&&IMG[p.img]?`<div class="fig">${IMG[p.img]()}</div>`:""}${p.dl?`<div class="dl"><div><span class="dlh">🖥️ Ordinateur de bureau</span>${md(p.dl.d||"")}</div><div><span class="dlh">💻 Ordinateur portable</span>${md(p.dl.l||"")}</div></div>`:""}${(p.shots||[]).map(F).join("")}${p.steps?`<ol class="stp">${p.steps.map(x=>typeof x==="string"?`<li>${md(x)}</li>`:`<li>${md(x.t||"")}${x.shot?F(x.shot):""}${x.ok?`<div class="okv">✅ ${md(x.ok)}</div>`:""}</li>`).join("")}</ol>`:""}${p.warn?`<div class="note warn">⚠️ ${md(p.warn)}</div>`:""}${p.code?`<small>📄 ${esc(p.file||"")}</small><pre>${esc(p.code)}</pre><div class="row">${cpBtn(p.code)}${p.run||p.pv?`<button class="s" data-t="▶ Voir le résultat" onclick="runLesson(${i},this)">▶ Voir le résultat</button>`:""}</div>${p.run||p.pv?`<iframe class="lv ${p.mob?"mob":""}" id="lv${i}" sandbox="allow-scripts" title="Résultat"></iframe>`:""}`:""}${p.tip?`<div class="note">💡 ${md(p.tip)}</div>`:""}</div>`}).join("")}
 function coursTab(noBtn){const d=CUR.D.day;let h=mediaHTML(CUR.D),tipH="";
  for(const x of d.s){if(x.h=="__tip"){tipH=`<div class="note"><b>💡 Astuce &amp; erreur fréquente à éviter</b><br>${esc(x.b[0].t)}</div>`;continue}
   if(/^(Étapes|Exercice)/.test(x.h)||x.h.startsWith("Code")||x.b.some(b=>b.k=="code"))continue;h+=`<div class="card">${x.h?`<h2>${esc(x.h)}</h2>`:""}${blocks(x.b)}</div>`}
