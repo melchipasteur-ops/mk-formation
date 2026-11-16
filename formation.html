@@ -1087,15 +1087,18 @@ function rmShot(i){(CUR.rec.shots||[]).splice(i,1);$("#shotv").innerHTML=shotHTM
 function fail(m){const e=$("#err");if(e)e.textContent="⚠️ "+m;toast(m)}
 
 /* ----- questions théoriques : corrigées par le serveur ----- */
-function quizHTML(){const Q=CUR.D.quiz;if(!Q)return"";const qa=CUR.rec.qa||{},dis=locked()?"disabled":"",sc=QR;
- return `<div class="card"><h2>🧠 Questions théoriques</h2><p class="m">Corrigées automatiquement : le correcteur n'a pas à les noter. Vous pouvez vérifier vos réponses avant de remettre.</p>${Q.map((q,i)=>{const a=qa[i];let h=`<div class="qq"><b>${i+1}. ${esc(q[1])}</b>`;
+function quizHTML(){const Q=CUR.D.quiz;if(!Q)return"";const qa=CUR.rec.qa||{},ql=!!CUR.rec.qlock,dis=locked()||ql?"disabled":"",sc=QR;if(ql&&!sc&&!CUR.qauto&&!CUR.D.ro&&!CUR.D.view){CUR.qauto=1;setTimeout(qcheck,0)}
+ return `<div class="card"><h2>🧠 Questions théoriques</h2><p class="m">Corrigées automatiquement : le correcteur n'a pas à les noter.</p>${ql?`<div class="note">🔒 Vous avez déjà composé cette partie théorique : vos réponses sont définitives. Vous pouvez consulter votre note, mais plus la modifier.</div>`:`<div class="note">⚠️ Une seule tentative : dès que vous cliquez sur « Vérifier mes réponses » (ou que vous remettez votre travail), vos réponses sont enregistrées définitivement et ne pourront plus être corrigées.</div>`}${Q.map((q,i)=>{const a=qa[i];let h=`<div class="qq"><b>${i+1}. ${esc(q[1])}</b>`;
   if(q[0]=="qcm")h+=q[2].map((o,j)=>`<button class="op ${a===j?"sel":""}" ${dis} onclick="qset(${i},${j})">${esc(o)}</button>`).join("");
   else if(q[0]=="vf")h+=`<div class="row"><button class="op ${a===true?"sel":""}" ${dis} onclick="qset(${i},true)">Vrai</button><button class="op ${a===false?"sel":""}" ${dis} onclick="qset(${i},false)">Faux</button></div>`;
   else h+=`<input value="${esc(a||"")}" ${dis} placeholder="Votre réponse" oninput="qset(${i},this.value,1)">`;
-  if(sc&&sc.ok[i]!=null)h+=`<div class="${sc.ok[i]?"qy":"qn"}">${sc.ok[i]?"✅ Correct":"❌ Incorrect"} — ${esc(sc.ex[i])}</div>`;return h+"</div>"}).join("")}<p><button class="s" onclick="qcheck()">✔ Vérifier mes réponses</button> ${sc?`<b>Score : ${sc.s}/${sc.t} (${sc.v}/20)</b>`:""}</p></div>`}
+  if(sc&&sc.ok[i]!=null)h+=`<div class="${sc.ok[i]?"qy":"qn"}">${sc.ok[i]?"✅ Correct":"❌ Incorrect"} — ${esc(sc.ex[i])}</div>`;return h+"</div>"}).join("")}<p>${ql?(sc?"":`<button class="s" onclick="qcheck()">📊 Voir ma note</button>`):`<button class="s" id="qcb" onclick="qcheck(1)">✔ Vérifier mes réponses</button>`} ${sc?`<b>Score : ${sc.s}/${sc.t} (${sc.v}/20)</b>`:""}</p></div>`}
 function qre(){const e=$("#qz");if(e)e.innerHTML=quizHTML()}
-function qset(i,v,t){(CUR.rec.qa=CUR.rec.qa||{})[i]=v;persist();if(!t)qre()}
-async function qcheck(){try{await flush();QR=await sapi("fCheck",{day:CUR.n,qa:CUR.rec.qa||{}});qre()}catch(e){toast(e.message)}}
+function qset(i,v,t){if(CUR.rec.qlock||locked())return;(CUR.rec.qa=CUR.rec.qa||{})[i]=v;persist();if(!t)qre()}
+async function qcheck(first){const Q=CUR.D.quiz||[],qa=CUR.rec.qa||{};
+ if(first&&!CUR.rec.qlock){if(Q.some((q,i)=>qa[i]==null||qa[i]===""))return toast("Répondez d'abord à toutes les questions théoriques.");
+  const b=$("#qcb");if(b&&!b.dataset.a){b.dataset.a=1;b.textContent="⚠️ Cliquez à nouveau : vos réponses seront définitives";setTimeout(()=>{const x=$("#qcb");if(x){x.dataset.a="";x.textContent="✔ Vérifier mes réponses"}},6000);return}}
+ try{await flush();QR=await sapi("fCheck",{day:CUR.n,qa:CUR.rec.qa||{}});if(QR.qlock)CUR.rec.qlock=true;qre()}catch(e){toast(e.message)}}
 
 /* ----- remise (confirmation intégrée à la page) ----- */
 async function submitDay(){draft();const r=CUR.rec,d=CUR.D.day,b=$("#sb"),code=web(d.n)||php(d.n);$("#err").textContent="";

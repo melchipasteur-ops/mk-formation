@@ -268,7 +268,9 @@ function cleanData(d) {
   if (d.qa && typeof d.qa === "object") Object.entries(d.qa).slice(0, 20).forEach(([k, v]) => { if (/^\d{1,2}$/.test(k) && ["number", "boolean", "string"].includes(typeof v)) o.qa[k] = typeof v === "string" ? v.slice(0, 200) : v; });
   return o;
 }
-const recOut = r => r ? { ...(r.data || {}), sub: Number(r.sub || 0), grade: r.grade == null ? null : Number(r.grade), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), comment: r.comment || "", att: r.att || 0 } : {};
+// Phase théorique verrouillée : dès que l'étudiant a vérifié ses réponses ou remis son travail, il ne peut plus les modifier (il voit seulement sa note).
+const qLocked = r => !!(r && ((r.data && r.data.qlk) || r.sub));
+const recOut = r => r ? { ...(r.data || {}), qlock: qLocked(r), sub: Number(r.sub || 0), grade: r.grade == null ? null : Number(r.grade), gp: r.gp == null ? null : Number(r.gp), gt: r.gt == null ? null : Number(r.gt), comment: r.comment || "", att: r.att || 0 } : {};
 
 
 // ===================== FORMATION : vidéos et images des cours (stockage privé) =====================
@@ -854,11 +856,19 @@ const A = {
   async fSave(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fv", 900); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm, true), p = pm[n];
     if (p && p.sub && (p.grade == null || passedRow(p))) throw E("Ce travail est verrouillé.", 409);
-    must(await db.from("formation_prog").upsert({ num: s.num, day: n, data: cleanData(d.data || {}) })); return { ok: true };
+    const old = must(await db.from("formation_prog").select("data,sub").eq("num", s.num).eq("day", n).maybeSingle()), nd = cleanData(d.data || {});
+    if (qLocked(old)) { nd.qa = (old.data && old.data.qa) || {}; nd.qlk = (old.data && old.data.qlk) || Number(old.sub) || Date.now(); } // réponses théoriques figées
+    must(await db.from("formation_prog").upsert({ num: s.num, day: n, data: nd })); return { ok: true, qlock: !!nd.qlk };
   },
   async fCheck(d, c) {
-    const { fx, pm } = await fctx(d, c, "fk"), n = needDay(d, fx, pm, true), Q = quizOf(n); if (!Q) throw E("Pas de questions ce jour-là.");
-    const sc = qscore(n, cleanData({ qa: d.qa }).qa); return { ok: sc.ok, ex: Q.map(qexp), s: sc.s, t: sc.t, v: sc.v };
+    const { s, fx, pm, ro } = await fctx(d, c, "fk"), n = needDay(d, fx, pm, true), Q = quizOf(n); if (!Q) throw E("Pas de questions ce jour-là.");
+    const out = sc => ({ ok: sc.ok, ex: Q.map(qexp), s: sc.s, t: sc.t, v: sc.v, qlock: true });
+    if (ro) return { ...out(qscore(n, cleanData({ qa: d.qa }).qa)), qlock: false }; // aperçu administrateur : rien n'est enregistré
+    const r = must(await db.from("formation_prog").select("data,sub").eq("num", s.num).eq("day", n).maybeSingle()), dt = (r && r.data) || {};
+    if (qLocked(r)) return { ...out(qscore(n, dt.qa || {})), already: true }; // déjà composé : note d'origine, nouvelles réponses ignorées
+    const qa = cleanData({ qa: d.qa }).qa; if (Q.some((q, i) => qa[i] == null || qa[i] === "")) throw E("Répondez d'abord à toutes les questions théoriques. Attention : après vérification, vos réponses ne pourront plus être modifiées.");
+    must(await db.from("formation_prog").upsert({ num: s.num, day: n, data: { ...cleanData(dt), qa, qlk: Date.now() } }));
+    return out(qscore(n, qa));
   },
   async fSubmit(d, c) {
     const { s, fx, pm, ro } = await fctx(d, c, "fu"); if (ro) throw E("Mode lecture (administrateur) : aucune modification.", 403); const n = needDay(d, fx, pm, true), p = pm[n];
@@ -869,7 +879,7 @@ const A = {
     if (!code && String(dt.answer || "").trim().length < 5 && !dt.shot && !(dt.shots && dt.shots.length) && !(await vidsFor(s.num, n)).list.length && !(await vidsFor(s.num, n)).docs.length) throw E("Ajoutez un fichier, un lien, une description, une image ou une vidéo de votre travail.");
     const Q = quizOf(n), qa = dt.qa || {}; if (Q && Q.some((q, i) => qa[i] == null || qa[i] === "")) throw E("Répondez d'abord à toutes les questions théoriques.");
     const sc = qscore(n, qa);
-    must(await db.from("formation_prog").upsert({ num: s.num, day: n, sub: Date.now(), grade: null, gp: null, gt: sc ? sc.v : null, comment: "", att: (p && p.att || 0) + 1 })); return { ok: true };
+    must(await db.from("formation_prog").upsert({ num: s.num, day: n, data: { ...dt, qlk: dt.qlk || Date.now() }, sub: Date.now(), grade: null, gp: null, gt: sc ? sc.v : null, comment: "", att: (p && p.att || 0) + 1 })); return { ok: true };
   },
   // ---------- Formation : administrateur ----------
   async fAdmin(d, ctx) {
