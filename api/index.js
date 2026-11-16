@@ -949,7 +949,8 @@ const A = {
   async fCourse(d) {
     check(d.token, "a"); const n = Math.round(+d.day), x = dayDef(n); if (!x) throw E("Jour inconnu.", 404);
     const nt = must(await db.from("formation_notes").select("note").eq("day", n + NK()).maybeSingle()), L = CT.lessons[n];
-    return { day: x, lesson: L ? { parts: L.parts } : null, quiz: quizOf(n), sites: CT.sites, teach: CT.teach[n] || null, note: nt ? nt.note || "" : "" };
+    const nb = k => { const y = dayDef(k); return y ? { n: k, title: y.title } : null; }; // cours précédent / suivant pour la navigation
+    return { day: x, lesson: L ? { parts: L.parts } : null, quiz: quizOf(n), sites: CT.sites, teach: CT.teach[n] || null, note: nt ? nt.note || "" : "", prev: nb(n - 1), next: nb(n + 1), total: CT.course.length };
   },
   async fNote(d) {
     check(d.token, "a"); const n = Math.round(+d.day); if (!dayDef(n)) throw E("Jour inconnu.", 404);
