@@ -331,10 +331,10 @@ const wipeStudent = async (s, pname, how) => {
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
-const PERM = { adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", bulkDelStudents: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", setTrack: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", deleteCohort: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
+const PERM = { pushSub: "*", pushUnsub: "*", pushTest: "*", pushKey: "*", pushStats: "*", pushSend: ROOTONLY, adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", bulkDelStudents: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", setTrack: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", deleteCohort: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
   fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fSkipSet: "f_ctl", fLib: "f_corr", fLibGet: "f_corr", fGradeInfo: "f_corr", fPurge: ROOTONLY, fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
-const READONLY = new Set(["fAccessList", "fLib", "fLibGet", "fGradeInfo", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
+const READONLY = new Set(["pushSub", "pushUnsub", "pushTest", "pushKey", "pushStats", "fAccessList", "fLib", "fLibGet", "fGradeInfo", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
 async function adminCtx(token) {
   let t; try { t = check(token, "a"); } catch (e) { return null; }
   if (!t.u || t.u === "root") return { root: true, id: "root", name: "Administrateur principal", pm: Object.keys(PERMS) };
@@ -345,6 +345,106 @@ const needRoot = (d, c) => { check(d.token, "a"); if (!c.who || !c.who.root) thr
 const hasP = (c, p) => !c.who || c.who.root || c.who.pm.includes(p);
 const DUMMY = hash("dummy");
 async function audit(who, d) { try { await db.from("admin_audit").insert({ at: Date.now(), who: who.name, action: d.action, target: String(d.num || d.id || d.day || d.login || "").slice(0, 40) }); } catch (e) { /* le journal ne bloque jamais l'action */ } }
+
+// ===================== NOTIFICATIONS PUSH (téléphone / ordinateur) =====================
+// Aucune notification ne bloque jamais une action : en cas d'erreur (table absente, service indisponible), l'action continue normalement.
+// Clés VAPID : variables Vercel VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY si elles existent, sinon créées automatiquement une seule fois et gardées dans Supabase (table push_vapid).
+let _wp = null, _vk = null;
+const webpush = () => { if (_wp === null) { try { _wp = require("web-push"); } catch (e) { _wp = false; } } return _wp || null; };
+async function vapid() {
+  if (_vk) return _vk;
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) return (_vk = { pub: process.env.VAPID_PUBLIC_KEY, priv: process.env.VAPID_PRIVATE_KEY });
+  const w = webpush(); if (!w) return null;
+  const r = await db.from("push_vapid").select("pub,priv").eq("id", 1).maybeSingle(); if (r.error) return null;
+  if (r.data && r.data.pub) return (_vk = r.data);
+  const k = w.generateVAPIDKeys(), ins = await db.from("push_vapid").insert({ id: 1, pub: k.publicKey, priv: k.privateKey });
+  if (ins.error) { const again = await db.from("push_vapid").select("pub,priv").eq("id", 1).maybeSingle(); return again.data ? (_vk = again.data) : null; } // créées en même temps par une autre requête
+  return (_vk = { pub: k.publicKey, priv: k.privateKey });
+}
+// Qui reçoit quoi côté administration : un sous-administrateur ne reçoit que ce que ses droits lui permettent de voir
+const PUSH_PERM = { reg: "dash", dossier: "dash", pay: "payments", sub: "f_corr", retrait: "attest", partner: "partners" };
+const cleanSub = s => { if (!s || typeof s !== "object") return null; const ep = String(s.endpoint || ""), k = s.keys || {}; if (!/^https:\/\/[^\s]{10,900}$/.test(ep) || typeof k.p256dh !== "string" || typeof k.auth !== "string" || k.p256dh.length > 200 || k.auth.length > 100) return null; return { endpoint: ep, keys: { p256dh: k.p256dh, auth: k.auth } }; };
+async function pushTo(rows, msg) {
+  const w = webpush(), K = await vapid(); if (!w || !K || !rows.length) return 0;
+  const body = JSON.stringify({ title: String(msg.title || "MK-DIGIT GRAPH").slice(0, 80), body: String(msg.body || "").slice(0, 240), url: String(msg.url || "/").slice(0, 200), tag: String(msg.tag || "").slice(0, 60) });
+  const opt = { vapidDetails: { subject: process.env.VAPID_SUBJECT || "mailto:contact@mk-digit.app", publicKey: K.pub, privateKey: K.priv }, TTL: 86400, timeout: 4000, urgency: "high" };
+  const dead = []; let ok = 0;
+  for (let i = 0; i < rows.length; i += 50) { // par paquets : la fonction Vercel reste rapide même avec beaucoup d'abonnés
+    const res = await Promise.allSettled(rows.slice(i, i + 50).map(r => w.sendNotification({ endpoint: r.endpoint, keys: r.keys }, body, opt)));
+    res.forEach((x, j) => { if (x.status === "fulfilled") ok++; else if (x.reason && [404, 410].includes(x.reason.statusCode)) dead.push(rows[i + j].endpoint); });
+  }
+  if (dead.length) await db.from("push_subs").delete().in("endpoint", dead); // téléphone désabonné ou application désinstallée
+  return ok;
+}
+async function pushStudents(nums, msg) { if (!nums || !nums.length) return 0; const all = []; for (let i = 0; i < nums.length; i += 200) { const r = await db.from("push_subs").select("endpoint,keys").eq("role", "s").in("ref", nums.slice(i, i + 200)); if (r.error) return 0; all.push(...(r.data || [])); } return pushTo(all, msg); }
+async function pushAdmins(kind, msg) {
+  const r = await db.from("push_subs").select("endpoint,keys,ref").eq("role", "a"); if (r.error || !r.data.length) return 0;
+  const need = PUSH_PERM[kind], ids = [...new Set(r.data.map(x => x.ref).filter(x => x !== "root"))], ok = new Set(["root"]);
+  if (ids.length) { const a = await db.from("admins").select("id,active,perms").in("id", ids); (a.data || []).forEach(x => { if (x.active && (!need || (Array.isArray(x.perms) && x.perms.includes(need)))) ok.add(x.id); }); }
+  return pushTo(r.data.filter(x => ok.has(x.ref)), msg);
+}
+const cohortNums = async cid => must(await studentsC("num")).filter(x => (Number(x.cohort) || 1) === cid).map(x => x.num);
+const stuName = async num => { const s = must(await db.from("students").select("nom,prenoms").eq("num", num).maybeSingle()); return s ? (s.prenoms + " " + s.nom).trim() : num; };
+const dayLabel = n => { const MDL = (modDays(curT()) || {}).list, x = dayDef(n); return "Jour " + (MDL && MDL.includes(n) ? MDL.indexOf(n) + 1 : n) + (x && x.title ? " — " + x.title : ""); };
+const ADM = "/#/adminmelchi97", FADM = "/formation.html#/adminmelchi97", FST = num => "/formation.html?n=" + encodeURIComponent(num);
+// Appelé après chaque action réussie : décide s'il faut prévenir quelqu'un
+async function notifyAfter(action, d, out) {
+  const num = String(d.num || "").toUpperCase().slice(0, 30);
+  switch (action) {
+    case "register": return pushAdmins("reg", { title: "🆕 Nouvelle inscription", body: (cleanSp(d.prenoms) + " " + cleanSp(d.nom).toUpperCase()).trim() + " (" + out.num + ")" + (d.formation === "informatique" ? " · Informatique" : ""), url: ADM, tag: "reg" });
+    case "complete": return pushAdmins("dossier", { title: "📋 Dossier complété", body: (await stuName(num)) + " (" + num + ") a envoyé ses informations et sa photo.", url: ADM, tag: "dossier" });
+    case "pay": return pushAdmins("pay", { title: "💰 Paiement à valider", body: (await stuName(num)) + " · " + Math.round(+d.amount).toLocaleString("fr-FR") + " FCFA · réf. " + String(d.trx || "").toUpperCase().slice(0, 30), url: ADM, tag: "pay" });
+    case "replaceShot": return pushAdmins("pay", { title: "🔁 Capture de paiement renvoyée", body: (await stuName(num)) + " (" + num + ") a renvoyé la capture d'un paiement.", url: ADM, tag: "pay" });
+    case "fSubmit": return pushAdmins("sub", { title: "📝 Nouveau travail à corriger", body: (await stuName(num)) + " · " + dayLabel(Math.round(+d.day)), url: FADM, tag: "sub" });
+    case "retrait": return pushAdmins("retrait", { title: "🎓 Attestation retirée", body: (await stuName(num)) + " (" + num + ") a retiré son attestation.", url: ADM, tag: "retrait" });
+    case "answerDel": return pushAdmins("partner", { title: "🤝 Réponse d'un partenaire", body: "Demande de suppression " + (d.ok ? "acceptée" : "refusée") + " par le partenaire.", url: ADM, tag: "partner" });
+    case "answerPayout": return pushAdmins("partner", { title: "🤝 Versement " + (d.ok ? "confirmé" : "contesté"), body: "Le partenaire a " + (d.ok ? "confirmé la réception" : "indiqué ne pas avoir reçu") + " un versement.", url: ADM, tag: "partner" });
+    case "setPayStatus": {
+      if (!["valide", "rejete", "annule"].includes(d.st)) return 0;
+      const x = must(await db.from("payments").select("num,amount,motif").eq("id", String(d.id || "")).maybeSingle()); if (!x) return 0;
+      const a = Number(x.amount).toLocaleString("fr-FR") + " FCFA";
+      const m = d.st === "valide" ? { title: "✅ Paiement validé", body: "Votre paiement de " + a + " est validé. Merci !" } : d.st === "rejete" ? { title: "⚠️ Paiement refusé", body: "Votre paiement de " + a + " n'a pas été accepté" + (x.motif ? " : " + String(x.motif).replace(/[.\s]+$/, "") + "." : ".") + " Ouvrez votre reçu pour corriger." } : { title: "Paiement annulé", body: "Votre paiement de " + a + " a été annulé" + (x.motif ? " : " + String(x.motif).replace(/[.\s]+$/, "") + "." : ".") };
+      return pushStudents([x.num], { ...m, url: "/#/monrecu", tag: "pay-" + d.id });
+    }
+    case "fGrade": { const n = Math.round(+d.day); return pushStudents([num], { title: "✍️ Votre travail est corrigé", body: dayLabel(n) + " : " + String(out.grade).replace(".", ",") + "/20" + (out.grade >= PASSM ? " ✅ validé" : " — à reprendre"), url: FST(num) + "#/fiche/" + n, tag: "grade-" + n }); }
+    case "fGradeBulk": {
+      const items = (Array.isArray(d.items) ? d.items : []).map(x => ({ num: String(x && x.num || "").toUpperCase().slice(0, 30), day: Math.round(+(x && x.day)) })).filter(x => x.num && x.day >= 1).slice(0, 1000), by = {};
+      items.forEach(x => (by[x.num] = by[x.num] || []).push(x.day)); let n = 0;
+      for (const k of Object.keys(by)) n += await pushStudents([k], { title: "✍️ Travail corrigé", body: by[k].length > 1 ? by[k].length + " de vos travaux viennent d'être corrigés." : "Votre travail vient d'être corrigé : ouvrez votre fiche de correction.", url: FST(k) + (by[k].length === 1 ? "#/fiche/" + by[k][0] : "#/bulletin"), tag: "grade" });
+      return n;
+    }
+    case "fLaunch": { if (d.reset) return 0; const cid = Math.round(+d.cohort) || 1; return pushStudents(await cohortNums(cid), { title: "🚀 La formation est ouverte !", body: "Votre premier jour de cours vous attend. Bonne formation !", url: "/formation.html", tag: "launch" }); }
+    case "fSetDay": { const cid = Math.round(+d.cohort) || 1; if (!(Math.round(+d.day) > 0)) return 0; return pushStudents(await cohortNums(cid), { title: "📚 Nouveau cours disponible", body: "Un nouveau jour de formation est ouvert. Connectez-vous pour continuer.", url: "/formation.html", tag: "day" }); }
+    case "fAccessSet": { if (!d.on) return 0; return pushStudents([num], { title: "🔓 Accès ouvert", body: "Vos cours sont accessibles dès maintenant.", url: FST(num), tag: "access" }); }
+    case "setOpen": { if (!d.v) return 0; const r = await db.from("students").select("num").eq("termine", true); return pushStudents((r.data || []).map(x => x.num), { title: "🎓 Retrait des attestations ouvert", body: "Votre attestation est disponible : ouvrez votre reçu pour la retirer.", url: "/#/monrecu", tag: "open" }); }
+  }
+  return 0;
+}
+const NOTIFY = new Set(["register", "complete", "pay", "replaceShot", "fSubmit", "retrait", "answerDel", "answerPayout", "setPayStatus", "fGrade", "fGradeBulk", "fLaunch", "fSetDay", "fAccessSet", "setOpen"]);
+const PUSH_ACTIONS = {
+  async pushKey() { const K = await vapid(); if (!K) throw E("Les notifications ne sont pas encore activées sur le serveur (exécutez supabase_notifications.sql).", 503); return { key: K.pub }; },
+  async pushSub(d, c) { // enregistre ce téléphone : administrateur (jeton) ou étudiant (numéro + identifiant)
+    await limit("ps:" + c.ip, 30, 3600e3); const sub = cleanSub(d.sub); if (!sub) throw E("Abonnement invalide.");
+    let role, ref;
+    if (d.as === "a") { check(d.token, "a"); role = "a"; ref = c.who && !c.who.root ? c.who.id : "root"; }
+    else { const s = await findStudent(d.num, d.id, "num"); if (!s) throw E("Numéro ou identifiant incorrect.", 404); role = "s"; ref = s.num; }
+    const r = await db.from("push_subs").upsert({ endpoint: sub.endpoint, keys: sub.keys, role, ref, ua: String(d.ua || "").slice(0, 160), at: Date.now() }); if (r.error) throw E("Exécutez d'abord supabase_notifications.sql dans Supabase.", 503);
+    return { ok: true, role };
+  },
+  async pushUnsub(d, c) { await limit("pu:" + c.ip, 30, 3600e3); const ep = String(d.endpoint || "").slice(0, 1000); if (ep) await db.from("push_subs").delete().eq("endpoint", ep); return { ok: true }; },
+  async pushTest(d, c) { // notification d'essai envoyée uniquement à ce téléphone
+    await limit("pt:" + c.ip, 10, 900e3); const ep = String(d.endpoint || "").slice(0, 1000), r = must(await db.from("push_subs").select("endpoint,keys").eq("endpoint", ep)); if (!r.length) throw E("Ce téléphone n'est pas encore abonné.", 404);
+    const n = await pushTo(r, { title: "🔔 Notifications activées", body: "Vous recevrez ici les nouvelles de MK-DIGIT GRAPH.", url: "/", tag: "test" }); if (!n) throw E("L'envoi d'essai a échoué. Réessayez dans un instant.", 502); return { ok: true };
+  },
+  async pushSend(d) { // message libre de l'administrateur principal à tous les étudiants (ou à une promotion)
+    check(d.token, "a"); const title = String(d.title || "").trim().slice(0, 80), body = String(d.body || "").trim().slice(0, 240); if (title.length < 2 || body.length < 2) throw E("Écrivez un titre et un message.");
+    const cid = Math.round(+d.cohort) || 0, nums = cid ? await cohortNums(cid) : must(await db.from("students").select("num")).map(x => x.num);
+    const subs = must(await db.from("push_subs").select("endpoint,ref").eq("role", "s")), have = new Set(nums), target = [...new Set(subs.filter(x => have.has(x.ref)).map(x => x.ref))];
+    const n = await pushStudents(target, { title, body, url: String(d.url || "").startsWith("/") ? String(d.url).slice(0, 200) : "/formation.html", tag: "msg-" + Date.now() });
+    return { ok: true, sent: n, students: target.length };
+  },
+  async pushStats(d) { check(d.token, "a"); const r = must(await db.from("push_subs").select("role")); return { admins: r.filter(x => x.role === "a").length, students: r.filter(x => x.role === "s").length }; },
+};
 
 const A = {
   async regState() {
@@ -1001,6 +1101,7 @@ const A = {
     if (!must(await db.from("students").select("num").eq("num", num).maybeSingle())) throw E("Aucun étudiant avec ce numéro.", 404);
     must(await db.from("formation_access").upsert({ num, open_day: Math.max(1, Math.min(60, Math.round(+d.day) || 60)), note: String(d.note || "").slice(0, 200), at: Date.now() })); return { ok: true };
   },
+  ...PUSH_ACTIONS,
 };
 
 module.exports = async (req, res) => {
@@ -1028,7 +1129,11 @@ module.exports = async (req, res) => {
       else if (Number(d.cohort) > 0 && /^f[A-Z]/.test(d.action)) T = { formation: await formOfCohort(d.cohort), module: null };
       else if (FORMS[d.formation] && /^f[A-Z]/.test(d.action)) T = { formation: d.formation, module: null };
     } catch (e) { T = null; }
-    const out = await als.run({ ip, T }, () => f(d, { ip, who }));
+    const out = await als.run({ ip, T }, async () => {
+      const o = await f(d, { ip, who });
+      if (NOTIFY.has(d.action)) { try { await Promise.race([notifyAfter(d.action, d, o || {}), sleep(5000)]); } catch (e) { console.error("notification", e && e.message); } } // jamais bloquant
+      return o;
+    });
     if (who && PERM[d.action] && !READONLY.has(d.action)) await audit(who, d);
     res.status(200).json(out);
   } catch (e) { if (!e.st || e.st >= 500) console.error(e); res.status(e.st || 500).json({ error: e.st ? e.message : "Erreur serveur. Réessayez." }); }
