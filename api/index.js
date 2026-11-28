@@ -81,7 +81,7 @@ const commOf = (p, pays) => {
   const rank = {}; Object.keys(first).sort((a, b) => first[a] - first[b] || (a < b ? -1 : 1)).forEach((n, i) => { rank[n] = i + 1; });
   return Math.round(v.reduce((t, x) => t + x.amount * tierPct(p, rank[x.num]) / 100, 0));
 };
-const part = (p, withPin, pouts = [], base = 0, comm = null) => ({ id: p.id, name: p.name, code: p.code, wa: p.wa || "", coef: Number(p.coef), base, comm: comm == null ? Math.round(base * Number(p.coef) / 100) : comm, tiers: Array.isArray(p.tiers) ? p.tiers : [], paid: pouts.filter(x => x.st === "recu").reduce((a, x) => a + Number(x.amount), 0), pending: pouts.filter(x => x.st === "attente").reduce((a, x) => a + Number(x.amount), 0), rompu: p.rompu || null, pinChanged: !!p.pin_changed, ...(withPin && !p.pin_changed && p.pin ? { pin: pinDec(p.pin) } : {}) });
+const part = (p, withPin, pouts = [], base = 0, comm = null) => ({ id: p.id, name: p.name, code: p.code, wa: p.wa || "", coef: Number(p.coef), base, comm: comm == null ? Math.round(base * Number(p.coef) / 100) : comm, tiers: Array.isArray(p.tiers) ? p.tiers : [], paid: pouts.filter(x => x.st === "recu").reduce((a, x) => a + Number(x.amount), 0), pending: pouts.filter(x => x.st === "attente").reduce((a, x) => a + Number(x.amount), 0), rompu: p.rompu || null, pinChanged: !!p.pin_changed, cohort: Number(p.cohort) || 0, ...(withPin && !p.pin_changed && p.pin ? { pin: pinDec(p.pin) } : {}) });
 const payRow = x => ({ id: x.id, partner: x.partner, amount: Number(x.amount), ref: x.ref, note: x.note, date: Number(x.date), st: x.st, date_conf: x.date_conf ? Number(x.date_conf) : 0 });
 const img = s => typeof s === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(s) && s.length < 900000;
 const pinOk = (p, pin) => p.pin_hash ? (same(String(pin || ""), p.pin_hash) || (!p.pin_changed && same(String(pin || "").trim().toUpperCase(), p.pin_hash))) : (p.pin != null && String(pin || "").trim().toUpperCase() === String(p.pin).toUpperCase());
@@ -331,7 +331,7 @@ const wipeStudent = async (s, pname, how) => {
 // ===================== ADMINISTRATEURS ET DROITS D'ACCÈS =====================
 const PERMS = { dash: "Tableau de bord (statistiques, listes)", students: "Informations confidentielles des étudiants (noms, contacts, naissance, photo, identifiants)", payments: "Paiements : historique, validation, captures", partners: "Partenaires, commissions et versements", delete: "Supprimer des inscriptions", attest: "Attestations et ouverture du retrait", f_ctl: "Formation : démarrer et ouvrir les jours", f_corr: "Formation : corriger les travaux", f_view: "Formation : voir comme un étudiant", f_courses: "Formation : cours et notes pour professeur", f_gift: "Formation : accès offerts" };
 const ROOTONLY = "root";
-const PERM = { pushSub: "*", pushUnsub: "*", pushTest: "*", pushKey: "*", pushStats: "*", pushSend: ROOTONLY, adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", bulkDelStudents: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", setTrack: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", deleteCohort: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
+const PERM = { setPartnerCohort: "partners", pushSub: "*", pushUnsub: "*", pushTest: "*", pushKey: "*", pushStats: "*", pushSend: ROOTONLY, adminState: "dash", img: "students", pimg: "payments", setPayStatus: "payments", addPartner: "partners", setCoef: "partners", addPayout: "partners", cancelPayout: "partners", breakContract: "partners", restoreContract: "partners", resetPin: "partners", partnerState: "partners", closeReq: "delete", delStudent: "delete", bulkDelStudents: "delete", setConf: "students", setTerm: "attest", allTerm: "attest", setOpen: "attest", setOffer: "f_gift", setT1: "f_gift", setCiv: "students", setTiers: "partners", moveStudent: "students", setTrack: "students", newCohort: "f_ctl", setCohortPricing: "f_ctl", deleteCohort: "f_ctl", setRegCohort: "f_ctl", detachPartner: "partners",
   fAdmin: "f_any", fSub: "f_corr", fGrade: "f_corr", fGradeBulk: "f_corr", fLaunch: "f_ctl", fSetDay: "f_ctl", fSetStart: "f_ctl", fAccessList: "f_ctl", fAccessSet: "f_ctl", fSkipSet: "f_ctl", fLib: "f_corr", fLibGet: "f_corr", fGradeInfo: "f_corr", fPurge: ROOTONLY, fCourses: "f_courses", fCourse: "f_courses", fNote: "f_courses", fMediaList: "f_courses", fMediaInit: "f_courses", fMediaDone: "f_courses", fMediaSet: "f_courses", fMediaDel: "f_courses", fFreeList: "f_gift", fFreeSet: "f_gift", fState: "f_view", fDay: "f_view", fCheck: "f_view", fBulletin: "f_view", fFiche: "f_view",
   adminMe: "*", adminChangePwd: "*", regenCode: "students", bulkCodes: "students", unlock: "students", adminList: ROOTONLY, adminSave: ROOTONLY, adminReset: ROOTONLY, adminDel: ROOTONLY, audit: ROOTONLY, backup: ROOTONLY, purgeAll: ROOTONLY, setProd: ROOTONLY, setReg: ROOTONLY };
 const READONLY = new Set(["pushSub", "pushUnsub", "pushTest", "pushKey", "pushStats", "fAccessList", "fLib", "fLibGet", "fGradeInfo", "adminState", "fAdmin", "fCourses", "fCourse", "fFreeList", "fMediaList", "fState", "fDay", "fCheck", "fBulletin", "fFiche", "img", "pimg", "adminMe", "adminList", "audit", "partnerState"]);
@@ -609,11 +609,13 @@ const A = {
     let p, ro = false;
     if (c.who && d.pid) { p = await getPartner(String(d.pid)); ro = true; if (!p) throw E("Partenaire introuvable.", 404); } // l'administrateur voit l'espace d'un partenaire, en lecture seule
     else { const t = check(d.token, "p"); p = await getPartner(t.pid); if (!p || p.rompu) throw E("Accès désactivé.", 401); if (!p.pin_changed) return { mustChange: true, partner: { id: p.id, name: p.name } }; }
-    const pays = must(await db.from("payments").select(PCOLS).eq("partner", p.id).order("date")).map(payPub);
-    const OFFS = await offersMap(), T1M = await t1Map(), PM = await pricesMap(), CM = await cohortMap(), TMP = await trackMap(), st = must(await db.from("students").select(COLS).eq("partner", p.id).order("date")).map(r => forPartner(enrich(r, pays, OFFS[r.num] || 0, withT1(modPr(PM[CM[r.num] || 1], TMP[r.num]), T1M[r.num]))));
-    const dreq = must(await db.from("dreq").select("*").eq("partner", p.id).order("date", { ascending: false }));
+    const CM = await cohortMap(), pc = Number(p.cohort) || 0, inP = num => !pc || (CM[num] || 1) === pc; // partenaire rattaché à une promotion : il ne voit que les étudiants de cette promotion
+    const pays = must(await db.from("payments").select(PCOLS).eq("partner", p.id).order("date")).map(payPub).filter(x => inP(x.num));
+    const OFFS = await offersMap(), T1M = await t1Map(), PM = await pricesMap(), TMP = await trackMap(), st = must(await db.from("students").select(COLS).eq("partner", p.id).order("date")).filter(r => inP(r.num)).map(r => forPartner(enrich(r, pays, OFFS[r.num] || 0, withT1(modPr(PM[CM[r.num] || 1], TMP[r.num]), T1M[r.num]))));
+    const dreq = must(await db.from("dreq").select("*").eq("partner", p.id).order("date", { ascending: false })).filter(r => inP(r.num));
+    let promo = null; if (pc) { const cf = must(await db.from("formation_cfg").select("id,name,start_at").eq("id", pc).maybeSingle()); if (cf) promo = { id: cf.id, name: cf.name || "Promotion " + cf.id, start: Number(cf.start_at) || 0 }; }
     const pouts = must(await db.from("payouts").select("*").eq("partner", p.id).order("date", { ascending: false })).map(payRow);
-    return { ro, partner: part(p, false, pouts, baseOf(p, pays), commOf(p, pays)), students: st, payments: pays.map(payPart), dreq: dreq.map(dreqPart), payouts: pouts };
+    return { ro, promo, partner: part(p, false, pouts, baseOf(p, pays), commOf(p, pays)), students: st, payments: pays.map(payPart), dreq: dreq.map(dreqPart), payouts: pouts };
   },
   async changePin(d) {
     const t = check(d.token, "p"), p = await getPartner(t.pid), nw = String(d.new || "");
@@ -656,6 +658,11 @@ const A = {
   },
   async addPartner(d) { check(d.token, "a"); const n = String(d.name || "").trim(); if (!n) throw E("Nom requis."); const pin = strongCode(12), code = rnd(6).toLowerCase(); must(await db.from("partners").insert({ id: rnd(5), name: n.slice(0, 80), code, pin: pinEnc(pin), pin_hash: hash(pin), pin_changed: false, coef: +d.coef || 0, paid: 0, wa: String(d.wa || "").replace(/\D/g, "").slice(0, 20) })); return { ok: true, pin, code }; },
   async setCoef(d) { check(d.token, "a"); must(await db.from("partners").update({ coef: +d.v || 0 }).eq("id", d.id)); return { ok: true }; },
+  async setPartnerCohort(d) { // rattache un partenaire à une promotion (0 = toutes les promotions)
+    check(d.token, "a"); const p = await getPartner(String(d.id || "")); if (!p) throw E("Partenaire introuvable.", 404);
+    const cid = Math.round(+d.cohort) || 0; if (cid && !must(await db.from("formation_cfg").select("id").eq("id", cid).maybeSingle())) throw E("Promotion inconnue.", 404);
+    const r = await db.from("partners").update({ cohort: cid || null }).eq("id", p.id); if (r.error) throw E("Exécutez d'abord supabase_partenaire_promotion.sql dans Supabase.", 503); return { ok: true };
+  },
   async addPayout(d) {
     check(d.token, "a"); const p = await getPartner(d.id); if (!p) throw E("Partenaire introuvable."); const v = Math.round(+d.v);
     if (!(v > 0)) throw E("Montant invalide.");
@@ -695,7 +702,8 @@ const A = {
     const row = must(await db.from("formation_cfg").select("*").eq("id", id).maybeSingle()); if (!row) throw E("Promotion introuvable.", 404);
     const n = must(await studentsC("num,cohort")).filter(x => (Number(x.cohort) || 1) === id).length;
     if (n > 0) throw E("Cette promotion contient " + n + " étudiant(s) : elle ne peut pas être supprimée. Déplacez d'abord les étudiants vers une autre promotion.", 409);
-    must(await db.from("formation_cfg").delete().eq("id", id)); return { ok: true, wasReg: !!row.registering };
+    must(await db.from("formation_cfg").delete().eq("id", id)); await db.from("partners").update({ cohort: null }).eq("cohort", id); // ses partenaires reviennent à « toutes les promotions »
+    return { ok: true, wasReg: !!row.registering };
   },
   async setRegCohort(d) { // choisir dans quelle promotion les nouveaux étudiants s'inscrivent
     check(d.token, "a"); const id = Math.round(+d.id) || 0; if (!must(await db.from("formation_cfg").select("id").eq("id", id).maybeSingle())) throw E("Promotion introuvable.", 404);
