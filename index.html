@@ -122,7 +122,7 @@ window.mkUseCred=async function(a,b,go){try{if(!has())return;var c=await navigat
 window.mkStuSave=function(n,i){try{sessionStorage.setItem("id_"+n,i)}catch(e){}window.mkSaveCred(n,i,"Étudiant "+n);var c=el("mkrem");window.mkRem.set("stu",c&&!c.checked?"":n)};
 window.mkAdmSave=function(u,p,must){if(must)return;window.mkSaveCred(u,p,"Administrateur "+u);var c=el("mkrem");window.mkRem.set("adm",c&&!c.checked?"":u)};
 })()</script></head><body>
-<header><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><img src="${LOGO}" id="hl" alt="MK-DIGIT GRAPH" style="height:36px;background:#fff;border-radius:8px;padding:4px 8px"><b style="font-size:15px" id="hdt">Formation · 01 Novembre 2026</b></span>
+<header><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><img src="${LOGO}" id="hl" alt="MK-DIGIT GRAPH" style="height:36px;background:#fff;border-radius:8px;padding:4px 8px"><b style="font-size:15px" id="hdt">Formation en ligne</b></span>
 <nav id="nv"></nav></header>
 <main id="app"></main>
 <footer class="foot"><a href="#/confidentialite">🔒 Confidentialité</a> · MK-DIGIT GRAPH</footer>
@@ -162,7 +162,7 @@ function comm(list,p){return p.comm!=null?p.comm:(p.base||0)*p.coef/100}
 // ====== Routeur ======
 function route(){const h=(location.hash||"#/").slice(2).split("/");const p=h[0];
  if(session.pt&&!session.at&&p!="partenaire"){location.hash="#/partenaire";return}
- if(!session.pro)app.classList.remove("ro");renderNav();
+ if(!session.pro)app.classList.remove("ro");renderNav();{const hd=$("#hdt");if(hd)hd.textContent=p=="adminmelchi97"?"Administration":p=="partenaire"?"Espace partenaire":"Formation en ligne"}
  ({"":home,confidentialite:privacy,inscription:home,recu:recu,attestation:attest,monrecu:monrecu,finaliser:finaliser,verifier:verifier,partenaire:partner,adminmelchi97:admin}[p]||home)(h[1])}
 addEventListener("hashchange",route);
 // ====== Accueil / inscription ======
@@ -363,6 +363,7 @@ function pEvents(){const ev=[];
  return ev.sort((a,b)=>b.d-a.d)}
 function ptab(t){session.ptab=t;pView();window.scrollTo(0,0)}
 function pView(){
+ {const hd=$("#hdt");if(hd)hd.textContent="Espace partenaire"+(S.promo?" · "+S.promo.name:"")}
  const p=S.partners[0],pays=S.payments||[],tab=session.ptab||"res";
  const dr=S.dreq.filter(r=>r.partner==p.id&&r.st=="attente"),l=S.students.filter(s=>s.partner==p.id).sort((a,b)=>b.date-a.date),v=l.filter(s=>s.solde),a=l.filter(s=>s.pend>0);
  const wait=pays.filter(x=>x.st=="attente"),sWait=wait.reduce((t,x)=>t+x.amount,0),enc=l.reduce((x,s)=>x+(s.paid||0),0),due=comm(l,p),reste=due-(p.paid||0)-(p.pending||0);
